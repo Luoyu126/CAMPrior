@@ -222,7 +222,9 @@ def complement_adjacency(A):
 
 
 def compute_task(task, device, A_cache=None):
-    """Run one task (dict of numpy arrays, see SimLabelPool.compute) on device; returns numpy."""
+    """Run one task (dict of numpy arrays, see SimLabelPool.compute) on device; returns numpy.
+    task['kind'] == 'block': block-move labels (solvers/block_labels.py), x_next holding the stored
+    states X_t, starts their steps t, and sel a dummy (C, n) array: the labels are (C, n)."""
     n = int(task['n'])
     key = task['graph_key']
     complement = bool(task.get('complement', False))
@@ -237,6 +239,14 @@ def compute_task(task, device, A_cache=None):
         if A_cache is not None:
             A_cache.clear()
             A_cache.update(key=(key, complement), A=A)
+    if task.get('kind') == 'block':                 # block-move labels (solvers/block_labels.py)
+        from .block_labels import block_labels
+        lab = block_labels(A, torch.as_tensor(task['b']), torch.as_tensor(task['x_next']),
+                           torch.as_tensor(task['starts']), torch.as_tensor(task['seeds']), task['temps'],
+                           task['d'], task['eps'], task['beta_prior'], S=int(task['block_seeds']),
+                           R_screen=int(task['block_screen_R']), R_eval=int(task['block_eval_R']),
+                           max_conf=int(task['block_max_conf']))
+        return lab.cpu().numpy()
     args = (A, torch.as_tensor(task['b']), torch.as_tensor(task['x_next']),
             torch.as_tensor(task['sel']), torch.as_tensor(task['sign']),
             torch.as_tensor(task['starts']), torch.as_tensor(task['seeds']),
