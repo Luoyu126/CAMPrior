@@ -415,7 +415,7 @@ RB-large（11-11 训完；同预算 RLSA 35.50，CAM 论文 1500 epoch 41.25，K
 
 - **RLSA validation 扫参**（64 张图，50 步 × 20 条链）：BA-small 最好 τ0=0.1、d=10（27.875），τ0=1 这一行最好 d=10（28.906）；BA-large 最好 τ0=0.1、d=20（105.47），τ0=1 这一行最好 d=40（110.25）。
 - **BA-small**（sa 集群，11-13 02:00 UTC 起）：CAM τ0=0.1、CAMPrior 先验温度 0.1 和 1（d=10），GPU 4、6、7；和 MaxCut 共卡，约 25 分钟一个 epoch。
-- **BA-large**（原集群 0、1、6 号卡，11-13 10:41 启动；`docs/handoff_mds_ba_large.md`，进度见 `docs/handoff_cam_sd_cluster.md` 第 9 节）：CAM τ0=0.1、CAMPrior 先验温度 0.1 和 1（d=20）。截至 11-14 09:55 训到第 66–68 个 epoch，预计 11-14 晚上训完。validation（64 张图，越小越好）目前最好：CAMPrior 先验温度 0.1 **101.66**（最近 5 个均值 101.84，一直最稳），先验温度 1 101.95（之后缓慢变差到约 102.9），原版 CAM 102.05（最近 5 个均值 102.77）。同预算 RLSA test 108.71（τ0=0.1、d=20）。test 曲线还没评：评测用的 7 号卡被别的用户占用，评测暂停。
+- **BA-large**（原集群 0、1、6 号卡，11-13 10:41 启动；`docs/handoff_mds_ba_large.md`，进度见 `docs/handoff_cam_sd_cluster.md` 第 9、9.1 节）：CAM τ0=0.1、CAMPrior 先验温度 0.1 和 1（d=20）。截至 11-14 13:57 训到第 77–79 个 epoch，预计 11-14 20:30–21:30 训完。**test**（1000 张图，越小越好，已评到第 70 个 epoch）：CAMPrior 先验温度 0.1 每个点都最好，第 20 个 epoch 起 104.6–104.7（最好 104.55，第 30 个）；原版 CAM 105.3–105.9；先验温度 1 第 10 个 epoch 105.14，之后略变差到约 105.6–106.0。同预算 RLSA 108.71；PT-Denoise 表 2 的 BA-large：DiffUCO 104.01、PT-Denoise 103.84、Gurobi 104.01（采样预算不同）。validation 排序和 test 一致（先验温度 0.1 最好 101.66）。第 80–100 个 epoch 和 best.pt 待评。
 
 ### 2.11 最大团 RB-[200-300] 和 RB-[800-1200]（11-12 启动，原集群）
 
