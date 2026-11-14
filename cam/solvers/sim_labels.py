@@ -28,6 +28,20 @@ All rollouts of an item use the uniforms of that item's own seeded CPU generator
 not depend on how items are grouped into tasks or which device computes them (a retried task gives
 the same numbers).
 
+Options (11-14, maximum clique; docs/status.md 2.11), set per task:
+    complement  the energy is MIS on the complement graph (envs/mcl.py): A is replaced by
+                A_c = 1/2 (J - I) - A (A with the dataset's 1/2 edge weights), so the prior and g are
+                exactly those of envs/mcl.py
+    rollouts R  R independent pairs of rollouts per label (factual and toggled share the uniforms
+                within a pair), label = mean over the R pairs; the variance falls as 1/R
+    objective   g = 'energy' (the training energy, default) or 'decoded': -size of the greedy
+                decoding of the end state (envs/mis.py / envs/mcl.py evaluate, continuous decoding),
+                i.e. the validation objective
+With R > 1 or objective 'decoded' (rlsa_cf_labels_multi) the uniforms come from a per-item
+generator on the compute device, drawn step by step (R x n per step from the item's start), so a
+label does not depend on how items are grouped, but CPU and GPU give different numbers. R = 1
+with 'energy' is rlsa_cf_labels, unchanged.
+
 SimLabelPool computes items on several GPUs, one worker process per GPU, and survives failures:
 a task that raises is retried on another worker (an out-of-memory task is split in two); a worker
 that dies, hangs past the timeout or keeps failing is restarted, and after max_restarts it is
@@ -119,21 +133,119 @@ def rlsa_cf_labels(A, b, x_next, sel, sign, starts, seeds, temps, d, eps, beta_p
     return out.float()
 
 
+def greedy_decode_size(A, X, chunk=65536):
+    """Size of the greedy decoding of every column of X (n x B, 0/1) on the conflict matrix A
+    (A_ij > 0: i and j cannot both be chosen): repeatedly take the largest remaining entry (the
+    first one on ties, torch.argmax), then drop it and its conflicts; as the continuous decoding
+    of envs/mis.py (A = graph) and envs/mcl.py (A = complement graph). Returns (B,) float."""
+    conf = A.to_dense() > 0 if A.is_sparse or A.layout != torch.strided else A > 0
+    out = torch.empty(X.shape[1], device=X.device)
+    for c0 in range(0, X.shape[1], chunk):
+        x = X[:, c0:c0 + chunk].T.contiguous()                                # B x n
+        rows = torch.arange(x.shape[0], device=x.device)
+        mask = torch.ones_like(x, dtype=torch.bool)
+        size = torch.zeros(x.shape[0], device=x.device)
+        while mask.any():
+            nxt = torch.argmax(torch.where(mask, x, -torch.inf), 1)
+            live = mask[rows, nxt]
+            r, u = rows[live], nxt[live]
+            size[r] += 1
+            mask[r, u] = False
+            mask[r] &= ~conf[u]
+        out[c0:c0 + chunk] = size
+    return out
+
+
+def rlsa_cf_labels_multi(A, b, x_next, sel, sign, starts, seeds, temps, d, eps, beta_prior, beta,
+                         rollouts=1, objective='energy'):
+    """rlsa_cf_labels with R = rollouts pairs per label (mean over the pairs) and objective
+    'energy' or 'decoded' (see the module docstring); same arguments otherwise. Uniforms: one
+    generator per item on A's device, seeded with the item's seed, R x n uniforms per step from
+    the item's start on (rollout r of the item uses row r)."""
+    dev = A.device
+    n, C = x_next.shape
+    m = sel.shape[1]
+    K = len(temps)
+    R = int(rollouts)
+    starts = torch.as_tensor(starts, dtype=torch.long)
+    order = torch.argsort(starts, stable=True)
+    s_sorted = starts[order]
+    sel_s = torch.as_tensor(sel, dtype=torch.long)[order].to(dev)
+    sign_s = torch.as_tensor(sign, dtype=torch.float32)[order].to(dev)
+    seeds_s = torch.as_tensor(seeds)[order].tolist()
+    gens = [torch.Generator(device=dev) for _ in range(C)]
+    for g, sd in zip(gens, seeds_s):
+        g.manual_seed(int(sd))
+
+    w = m + 1                                       # columns per rollout: factual, then m toggles
+    X = torch.as_tensor(x_next, dtype=torch.float32)[:, order].to(dev).repeat_interleave(R*w, dim=1)
+    rows = sel_s.unsqueeze(1).expand(C, R, m).reshape(-1)
+    cols = ((torch.arange(C*R, device=dev).unsqueeze(1)*w + 1 + torch.arange(m, device=dev))).reshape(-1)
+    X[rows, cols] = 1 - X[rows, cols]
+    b = b.to(dev).reshape(n, 1).float()
+    dd = min(int(d), n)
+
+    for j in range(int(s_sorted.min()) if C else K, K):
+        P = int(torch.searchsorted(s_sorted, torch.tensor(j), right=True))   # items with start <= j
+        if P == 0:
+            continue
+        x = X[:, :P*R*w]
+        grad = 2*beta_prior*(A@x) + b
+        delta = grad*(2*x - 1)/2
+        thr = -torch.kthvalue(-delta, dd, dim=0, keepdim=True).values
+        diff = delta - thr
+        if eps != 0:
+            diff = diff + eps
+        prob = torch.sigmoid(diff/temps[j])
+        u = torch.stack([torch.rand(R, n, generator=gens[p], device=dev) for p in range(P)])  # P x R x n
+        u = u.reshape(P*R, n).T.repeat_interleave(w, dim=1)                                 # n x P*R*w
+        X[:, :P*R*w] = torch.where(u < prob, 1 - x, x)
+
+    if objective == 'decoded':
+        g = -greedy_decode_size(A, X)
+    elif objective == 'energy':
+        g = (X*(beta*(A@X) + b)).sum(0)
+    else:
+        raise ValueError(f'unknown objective {objective}')
+    g = g.reshape(C, R, w)
+    lab_sorted = sign_s*(g[:, :, :1] - g[:, :, 1:]).mean(1)                  # C x m
+    out = torch.empty_like(lab_sorted)
+    out[order.to(dev)] = lab_sorted
+    return out.float()
+
+
+def complement_adjacency(A):
+    """A_c = 1/2 (J - I) - A of a single graph, A dense with the dataset's 1/2 edge weights
+    (envs/mcl.py: (A_c x)_i = 1/2 (sum_j x_j - x_i) - (A x)_i)."""
+    n = A.shape[0]
+    return 0.5*(torch.ones(n, n, device=A.device, dtype=A.dtype) - torch.eye(n, device=A.device, dtype=A.dtype)) - A
+
+
 def compute_task(task, device, A_cache=None):
     """Run one task (dict of numpy arrays, see SimLabelPool.compute) on device; returns numpy."""
     n = int(task['n'])
     key = task['graph_key']
-    if A_cache is not None and A_cache.get('key') == key:
+    complement = bool(task.get('complement', False))
+    if A_cache is not None and A_cache.get('key') == (key, complement):
         A = A_cache['A']
     else:
+        if complement and task.get('edge_weight') is None:
+            raise ValueError('complement labels need the edge weights (1/2 per directed edge)')
         A = dense_adjacency(task['edge_index'], n, device, task.get('edge_weight'))
+        if complement:
+            A = complement_adjacency(A)
         if A_cache is not None:
             A_cache.clear()
-            A_cache.update(key=key, A=A)
-    lab = rlsa_cf_labels(A, torch.as_tensor(task['b']), torch.as_tensor(task['x_next']),
-                         torch.as_tensor(task['sel']), torch.as_tensor(task['sign']),
-                         torch.as_tensor(task['starts']), torch.as_tensor(task['seeds']),
-                         task['temps'], task['d'], task['eps'], task['beta_prior'], task['beta'])
+            A_cache.update(key=(key, complement), A=A)
+    args = (A, torch.as_tensor(task['b']), torch.as_tensor(task['x_next']),
+            torch.as_tensor(task['sel']), torch.as_tensor(task['sign']),
+            torch.as_tensor(task['starts']), torch.as_tensor(task['seeds']),
+            task['temps'], task['d'], task['eps'], task['beta_prior'], task['beta'])
+    rollouts, objective = int(task.get('rollouts', 1)), task.get('objective', 'energy')
+    if rollouts == 1 and objective == 'energy':
+        lab = rlsa_cf_labels(*args)
+    else:
+        lab = rlsa_cf_labels_multi(*args, rollouts=rollouts, objective=objective)
     return lab.cpu().numpy()
 
 
