@@ -59,6 +59,12 @@ Ablations (docs/status.md): the prior enters CAMPrior in two places, and each ca
     --prior_kl_ref uniform KL to Ber(1/2) instead of Ber(sigmoid(a)), i.e. CAM's entropy term
                            (the prior only enters the policy: a warm start at RLSA whose optimum
                            p* = sigmoid(target * exp(-(1 - w)) / tau_train) is CAM's, not RLSA's)
+    --prior_recenter on    apply RLSA's top-d threshold to the total logit (prior + residual) instead
+                           of to the prior alone: z' = z - z_(d) + a_(d), with z_(d), a_(d) the
+                           d-th largest total and prior logits of the graph (per chain). With a zero
+                           residual z' = a (the sampler is RLSA); a shift of all residuals no longer
+                           changes p, so the network chooses which nodes flip, not how many (about
+                           d per step). Applied in the rollout, at inference and in the loss.
 With both switched off the loss is CAM's loss plus a constant and the sampler is CAM's
 (tests/test_cam_prior.py checks both).
 
@@ -138,6 +144,9 @@ def add_cam_prior_args(parser):
                         '<checkpoint>' + PRIOR_META_SUFFIX)
     g.add_argument('--prior_policy', default='on', choices=['on', 'off'],
                    help='ablation: off = flip logits are the network output alone (prior only in the KL)')
+    g.add_argument('--prior_recenter', default='off', choices=['on', 'off'],
+                   help="on = RLSA's top-d threshold on prior + residual (the network cannot change the "
+                        'number of flips per step, only which nodes flip)')
     g.add_argument('--prior_kl_ref', default='rlsa', choices=['rlsa', 'uniform'],
                    help="ablation: uniform = KL to Ber(1/2), i.e. CAM's entropy term (prior only in the policy)")
     g.add_argument('--prior_allow_mismatch', action='store_true',
@@ -237,6 +246,9 @@ class CAMPrior(CAM):
         self.prior_fixed = args.prior_fixed
         self.prior_tau_min = args.prior_tau_min
         self.prior_policy = args.prior_policy == 'on'
+        self.prior_recenter = getattr(args, 'prior_recenter', 'off') == 'on'
+        if self.prior_recenter and not self.prior_policy:
+            raise ValueError('--prior_recenter on needs --prior_policy on')
         self.prior_kl_rlsa = args.prior_kl_ref == 'rlsa'
         self.label_mode = args.label_mode
         if self.label_mode in ('sim', 'lin', 'simpol') and args.problem != 'mis':
@@ -319,7 +331,19 @@ class CAMPrior(CAM):
         and the prior logits."""
         prior = self.prior_logits(graph, solution, k, ratio, grad)
         residual = self.model(graph, solution.unsqueeze(-1), time).squeeze(-1)
-        return (prior + residual if self.prior_policy else residual), prior
+        return self.total_logits(graph, prior, residual), prior
+
+    def total_logits(self, graph, prior, residual):
+        """prior + residual (--prior_policy on), recentred at the d-th largest with --prior_recenter on,
+        so that the d-th largest total logit equals the d-th largest prior logit; residual alone with
+        --prior_policy off. prior, residual: num_nodes x columns (one state of the batch per column)."""
+        if not self.prior_policy:
+            return residual
+        z = prior + residual
+        if getattr(self, 'prior_recenter', False):
+            thr = lambda v: topd_threshold(v, graph.batch, graph.num_graphs, self.prior_d)
+            z = z - thr(z) + thr(prior)
+        return z
 
     # ------------------------------------------------------------------ training
     def train_batch(self, graph, batch):
@@ -327,7 +351,7 @@ class CAMPrior(CAM):
         solution, time, weight, target, prior = cols[:5]
         mask = cols[5] if len(cols) > 5 else None          # only with --label_mode sim / --label_frac < 1
         residual = self.model(graph, solution.unsqueeze(-1), time).squeeze(-1)
-        logits = prior + residual if self.prior_policy else residual
+        logits = CAMPrior.total_logits(self, graph, prior, residual)   # also works for test stand-ins
         ref = prior if self.prior_kl_rlsa else torch.zeros_like(prior)
         return cam_prior_node_loss(logits, ref, target, weight, graph.batch,
                                    self.tau, self.lambd, self.num_d,
@@ -638,6 +662,7 @@ class CAMPrior(CAM):
                 'prior_beta': self.prior_beta, 'prior_tau_min': a.prior_tau_min,
                 'num_tp': self.num_tp, 'beta': a.beta, 'global_step': self.global_step,
                 'prior_policy': a.prior_policy, 'prior_kl_ref': a.prior_kl_ref,
+                'prior_recenter': getattr(a, 'prior_recenter', 'off'),
                 'label_mode': a.label_mode, 'label_frac': a.label_frac,
                 'label_lambda': getattr(a, 'label_lambda', 1.0),
                 'lin_neighbors': getattr(a, 'lin_neighbors', False)}
@@ -659,8 +684,9 @@ class CAMPrior(CAM):
                        'prior_tau1': args.prior_tau1, 'prior_schedule': args.prior_schedule,
                        'prior_d': args.prior_d, 'prior_eps': args.prior_eps,
                        'prior_beta': self.prior_beta, 'num_tp': self.num_tp, 'beta': args.beta,
-                       'prior_policy': args.prior_policy, 'prior_kl_ref': args.prior_kl_ref}
-            older = {'prior_policy': 'on', 'prior_kl_ref': 'rlsa'}   # sidecars written before the flags
+                       'prior_policy': args.prior_policy, 'prior_kl_ref': args.prior_kl_ref,
+                       'prior_recenter': getattr(args, 'prior_recenter', 'off')}
+            older = {'prior_policy': 'on', 'prior_kl_ref': 'rlsa', 'prior_recenter': 'off'}   # sidecars written before the flags
             diff = {k: (meta.get(k, older.get(k)), v) for k, v in current.items()
                     if meta.get(k, older.get(k)) != v}
             if diff:
