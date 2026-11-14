@@ -15,7 +15,8 @@ validation graphs and record per step t, averaged over chains and graphs:
                                      selected nodes of X_t; the per-node minimiser of the loss is
                                      logit = ref + label / tau, so a negative label lowers the flip
                                      probability (for an unselected node: "don't add")
-plus the decoded clique size at the end (the validation metric, greedy decoding of the last state).
+plus the decoded clique size of the last state (greedy decoding), as the mean over chains and as the best
+chain, and the validation routine (evaluate_single) on the same graphs.
 
     WANDB_MODE=disabled CUDA_VISIBLE_DEVICES=7 $CAM_PYTHON cam/scripts/mis/mcl_flip_stats.py \
         --checkpoint runs/cam/mcl_rb_small_pilot/<exp>/epoch_0000.pt --epoch 1 [--recenter on]
@@ -131,12 +132,17 @@ def main():
             for k in keys:
                 acc[k] += torch.stack([torch.as_tensor(v, dtype=torch.float) for v in rec[k]]).cpu().numpy()
             obj, _ = solver.problem.evaluate(graph, x)
-            decoded.append(float(-obj.float().mean()) if torch.is_tensor(obj) else float(-np.mean(obj)))
+            sizes = -obj.float().reshape(-1)
+            decoded.append((float(sizes.mean()), float(sizes.max()), -float(solver.evaluate_single(graph))))
     G = min(a.graphs, len(solver.valid_loader))
     res = {k: (acc[k]/G).tolist() for k in keys}
     res.update(checkpoint=ck, epoch=a.epoch, tau=tau, recenter=a.recenter, graphs=G,
-               decoded_clique_mean=float(np.mean(decoded)))
-    print(f'decoded clique size (mean over {G} graphs x {Kc} chains, last state): {res["decoded_clique_mean"]:.2f}')
+               decoded_clique_mean=float(np.mean([d[0] for d in decoded])),
+               decoded_clique_best=float(np.mean([d[1] for d in decoded])),
+               valid_metric=float(np.mean([d[2] for d in decoded])))
+    print(f'decoded clique size of the last state over {G} graphs: mean over the {Kc} chains '
+          f'{res["decoded_clique_mean"]:.2f}, best chain {res["decoded_clique_best"]:.2f}; the validation routine '
+          f'(evaluate_single: best of num_k chains, soft last step) on the same graphs {res["valid_metric"]:.2f}')
     print('   t |  size  confl | adds  rem | E[add] E[rem] | prior E[add] E[rem] | resid0 resid1 | label0 label1')
     for t in SHOW:
         g = lambda k: res[k][t]
