@@ -20,7 +20,8 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from solvers.sim_labels import (SimLabelPool, compute_task, item_uniforms, rlsa_cf_labels,  # noqa: E402
-                                dense_adjacency)
+                                dense_adjacency, complement_adjacency, greedy_decode_size,
+                                rlsa_cf_labels_multi)
 from utils import exact_small  # noqa: E402
 
 torch.set_num_threads(2)
@@ -374,6 +375,132 @@ def test_11_camprior_linear_path():
         loss = lin.train_batch(graph, [torch.stack(c) for c in zip(*[out[i] for i in range(6)])])
         loss.backward()
         assert torch.isfinite(loss)
+
+
+# ---- 11-14: complement graph (maximum clique), R rollouts per label, decoded objective
+def _pyg(A):
+    """torch_geometric Data of a 0/1 adjacency, with the dataset's fields (edge weight 1/2, b = -1)."""
+    import types
+    from torch_geometric.data import Data
+    ei = A.nonzero().T.contiguous()
+    n = A.shape[0]
+    g = Data(edge_index=ei, edge_weight=torch.full((ei.shape[1],), 0.5), b=-torch.ones(n, 1), num_nodes=n)
+    g.batch = torch.zeros(n, dtype=torch.long)
+    g.A = torch.sparse_coo_tensor(ei, g.edge_weight, (n, n)).to_sparse_csr()
+    return g, types.SimpleNamespace(beta=1.02, mis_decoding='continuous')
+
+
+def test_13_greedy_decode_equals_envs():
+    from envs.mis import Env as MISEnv
+    from envs.mcl import Env as MClEnv
+    g = torch.Generator().manual_seed(0)
+    for n, p in ((12, 0.3), (15, 0.7)):
+        A, _, _ = er_graph(n, p, n)
+        data, args = _pyg(A)
+        X01 = torch.randint(0, 2, (n, 40), generator=g).float()
+        Xp = torch.rand(n, 40, generator=g)
+        for X in (X01, Xp):
+            mis = -MISEnv(args).evaluate(data, X)[0].float()
+            mcl = -MClEnv(args).evaluate(data, X)[0].float()
+            assert torch.equal(greedy_decode_size(0.5*A, X), mis), (greedy_decode_size(0.5*A, X), mis)
+            Ac = complement_adjacency(0.5*A)
+            assert torch.equal(greedy_decode_size(Ac, X), mcl), (greedy_decode_size(Ac, X), mcl)
+
+
+def test_14_complement_energy_equals_mcl_env():
+    """No rollout steps left: the label is the exact energy (or decoded size) difference of envs/mcl.py."""
+    from envs.mcl import Env as MClEnv
+    n, K, C, m = 11, 5, 6, 11
+    A, ei, b = er_graph(n, 0.6, 21)
+    data, args = _pyg(A)
+    env = MClEnv(args)
+    x_next, sel, sign, _, seeds = random_items(n, K, C, m, 22)
+    starts = torch.full((C,), K)
+    for objective, R in (('energy', 1), ('energy', 3), ('decoded', 2)):
+        task = dict(edge_index=ei.numpy(), edge_weight=np.full(ei.shape[1], 0.5, dtype=np.float32), n=n,
+                    b=b.numpy(), temps=[1.0]*K, graph_key=1, complement=True, rollouts=R, objective=objective,
+                    x_next=x_next.to(torch.uint8).numpy(), sel=sel.numpy(), sign=sign.numpy(),
+                    starts=starts.numpy(), seeds=seeds.numpy(), **SETTINGS)
+        lab = torch.as_tensor(compute_task(task, torch.device('cpu')))
+        g_of = (lambda X: env.energy_func(data, X)[0].reshape(-1)) if objective == 'energy' else \
+            (lambda X: env.evaluate(data, X)[0].float())
+        for c in range(C):
+            X1 = x_next[:, c:c+1].repeat(1, m)
+            X1[sel[c], torch.arange(m)] = 1 - X1[sel[c], torch.arange(m)]
+            want = sign[c]*(g_of(x_next[:, c:c+1]) - g_of(X1))
+            assert torch.allclose(lab[c], want, atol=1e-4), (objective, lab[c], want)
+
+
+def naive_multi(A, b, x_next, sel, sign, starts, seeds, temps, d, eps, beta_prior, beta, R, objective):
+    """Column-by-column rlsa_cf_labels_multi with the same uniforms (per-item generator, R x n per step)."""
+    n, C = x_next.shape
+    K = len(temps)
+    out = torch.zeros(sel.shape)
+
+    def g_of(x):
+        if objective == 'decoded':
+            return -greedy_decode_size(A, x.unsqueeze(1))[0]
+        return (x*(beta*(A@x) + b.reshape(-1))).sum()
+
+    for c in range(C):
+        gen = torch.Generator().manual_seed(int(seeds[c]))
+        U = [torch.rand(R, n, generator=gen) for _ in range(int(starts[c]), K)]
+        acc = torch.zeros(sel.shape[1])
+        for r in range(R):
+            def run(x):
+                x = x.clone()
+                for k, j in enumerate(range(int(starts[c]), K)):
+                    grad = 2*beta_prior*(A@x) + b.reshape(-1)
+                    delta = grad*(2*x - 1)/2
+                    thr = torch.sort(delta, descending=True).values[min(d, n) - 1]
+                    prob = torch.sigmoid((delta - thr + eps)/temps[j])
+                    x = torch.where(U[k][r] < prob, 1 - x, x)
+                return g_of(x)
+            g0 = run(x_next[:, c])
+            for q in range(sel.shape[1]):
+                x1 = x_next[:, c].clone()
+                x1[sel[c, q]] = 1 - x1[sel[c, q]]
+                acc[q] += sign[c, q]*(g0 - run(x1))
+        out[c] = acc/R
+    return out
+
+
+def test_15_multi_equals_naive():
+    n, K, C, m = 9, 6, 5, 3
+    A, ei, b = er_graph(n, 0.5, 31)
+    Ac = complement_adjacency(0.5*A)
+    temps = [0.5*(1 - j/K) + 0.05 for j in range(K)]
+    items = random_items(n, K, C, m, 32)
+    for Amat in (0.5*A, Ac):
+        for objective in ('energy', 'decoded'):
+            fast = rlsa_cf_labels_multi(Amat, b, *items, temps, **SETTINGS, rollouts=3, objective=objective)
+            slow = naive_multi(Amat, b, *items, temps, **SETTINGS, R=3, objective=objective)
+            assert torch.allclose(fast, slow, atol=1e-5), (objective, fast, slow)
+
+
+def test_16_multi_grouping_and_pool():
+    """Labels do not depend on how items are grouped; the pool equals the in-process result."""
+    common, arrs = _task(seed=41)
+    common = dict(common, rollouts=4, objective='decoded')
+    full = compute_task(dict(common, x_next=arrs[0], sel=arrs[1], sign=arrs[2], starts=arrs[3],
+                             seeds=arrs[4]), torch.device('cpu'))
+    h = len(arrs[3])//2
+    parts = [compute_task(dict(common, x_next=arrs[0][:, sl], sel=arrs[1][sl], sign=arrs[2][sl],
+                               starts=arrs[3][sl], seeds=arrs[4][sl]), torch.device('cpu'))
+             for sl in (slice(0, h), slice(h, None))]
+    assert np.allclose(np.concatenate(parts), full, atol=1e-6)
+    pool = SimLabelPool(['cpu', 'cpu'], fallback=None, timeout=60, nthreads=1, log=lambda *_: None)
+    try:
+        assert np.allclose(pool.compute(common, *arrs), full, atol=1e-6)
+    finally:
+        pool.close()
+    # R pairs average: more rollouts, smaller spread over seeds
+    spread = {}
+    for R in (1, 16):
+        labs = [compute_task(dict(common, rollouts=R, x_next=arrs[0], sel=arrs[1], sign=arrs[2], starts=arrs[3],
+                                  seeds=arrs[4] + 1000*k), torch.device('cpu')) for k in range(6)]
+        spread[R] = np.std(np.stack(labs), 0).mean()
+    assert spread[16] < 0.6*spread[1], spread
 
 
 def main():
