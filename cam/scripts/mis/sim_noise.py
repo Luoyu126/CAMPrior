@@ -61,16 +61,25 @@ def main_parser():
 
 
 @torch.no_grad()
-def prior_rollout(solver, graph, X, j0, ratio, U, objective='energy'):
+def prior_rollout(solver, graph, X, j0, ratio, U, objective='energy', horizons=()):
     """Run the RLSA prior from X (n x B) over steps j0 .. T-1 with uniforms U (T x n x B); returns
-    g of the end states (B,): the training energy, or with objective 'decoded' the validation
-    objective (problem.evaluate: greedy decoding to a feasible clique, -size)."""
+    {h: g} with g (B,) of the state after h steps, for each h in horizons below the remaining steps,
+    and h = -1 for the end state (the full rollout). g is the training energy, or with objective
+    'decoded' the validation objective (problem.evaluate: greedy decoding to a clique, -size)."""
+    def g(X):
+        if objective == 'decoded':
+            return solver.problem.evaluate(graph, X)[0].reshape(-1).float()
+        return solver.problem.energy_func(graph, X)[0].reshape(-1)
+    out = {}
+    if 0 in horizons:
+        out[0] = g(X)
     for j in range(j0, solver.num_tp):
         p = torch.sigmoid(solver.prior_logits(graph, X, j, ratio))
         X = torch.where(U[j] < p, 1 - X, X)
-    if objective == 'decoded':
-        return solver.problem.evaluate(graph, X)[0].reshape(-1).float()
-    return solver.problem.energy_func(graph, X)[0].reshape(-1)
+        if j - j0 + 1 in horizons and j < solver.num_tp - 1:
+            out[j - j0 + 1] = g(X)
+    out[-1] = g(X)
+    return out
 
 
 def main():
@@ -87,6 +96,9 @@ def main():
     ap.add_argument('--chunk', type=int, default=8192, help='rollout columns per batch')
     ap.add_argument('--objective', default='energy', choices=['energy', 'decoded'],
                     help='g of a rollout end state: training energy, or -size of the greedily decoded clique')
+    ap.add_argument('--horizons', default='',
+                    help='comma-separated truncation horizons H: also report labels with g taken after H '
+                         'rollout steps (the full rollout if fewer remain), e.g. 0,2,5,10')
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
@@ -118,6 +130,8 @@ def main():
           f'{a.graphs} graphs x {a.C} states x {a.m} nodes x {a.R} rollout pairs, objective {a.objective}', flush=True)
     rng = np.random.default_rng(a.seed)
     rows = []   # (t, selected, signal, noise power of one pair, cam label)
+    hs = sorted(int(h) for h in a.horizons.split(',') if h != '')
+    hrows = {h: [] for h in hs}   # (t, signal, noise power, full-horizon signal)
     with torch.no_grad():
         for gi, graph in enumerate(solver.train_loader):
             if gi >= a.graphs:
@@ -147,15 +161,23 @@ def main():
                 X0 = xn.unsqueeze(1).repeat(1, B)
                 tog = torch.arange(m, device=dev).repeat_interleave(a.R)*2*a.R + 2*torch.arange(a.R, device=dev).repeat(m) + 1
                 X0[nodes.repeat_interleave(a.R), tog] = 1 - X0[nodes.repeat_interleave(a.R), tog]
-                E = torch.empty(B, device=dev)
+                E = {h: torch.empty(B, device=dev) for h in [-1] + hs}
                 for c0 in range(0, B, a.chunk):
                     c1 = min(B, c0 + a.chunk)
                     u = torch.rand(T, n, (c1 - c0)//2, device=dev).repeat_interleave(2, dim=2)
-                    E[c0:c1] = prior_rollout(solver, graph, X0[:, c0:c1], t + 1, ratio, u, a.objective)
-                E = E.reshape(m, a.R, 2)
-                lab = s.unsqueeze(1)*(E[:, :, 0] - E[:, :, 1])   # m x R
-                sig = lab.mean(1)
-                noi = ((lab - sig.unsqueeze(1))**2).sum(1)/(a.R - 1)
+                    o = prior_rollout(solver, graph, X0[:, c0:c1], t + 1, ratio, u, a.objective, hs)
+                    for h in E:
+                        E[h][c0:c1] = o.get(h, o[-1])                # fewer than h steps left: the end state
+
+                def stats(Eh):
+                    Eh = Eh.reshape(m, a.R, 2)
+                    lab = s.unsqueeze(1)*(Eh[:, :, 0] - Eh[:, :, 1])   # m x R
+                    sig = lab.mean(1)
+                    return sig, ((lab - sig.unsqueeze(1))**2).sum(1)/(a.R - 1)
+                sig, noi = stats(E[-1])
+                for h in hs:
+                    sh, nh = stats(E[h])
+                    hrows[h] += [(int(t), float(sh[q]), float(nh[q]), float(sig[q])) for q in range(m)]
                 cam = (g_end[nodes, k]*(2*xt[nodes] - 1))
                 for q in range(m):
                     rows.append((int(t), int(xt[nodes[q]].item()), float(sig[q]), float(noi[q]), float(cam[q])))
@@ -187,6 +209,25 @@ def main():
                   + ' '.join(f'{snr[R]:6.2f}' for R in RS) + ' | ' + ' '.join(f'{corr[R]:4.2f}' for R in RS)
                   + f' | {r["mean_signal"]:6.2f} {r["frac_signal_pos"]:4.2f} | {r["cam_mean"]:6.2f} '
                   f'{r["cam_frac_pos"]:4.2f} {c_cam:5.2f}', flush=True)
+    if hs:
+        res['horizons'] = {}
+        print('\ntruncated horizon H, all nodes | rms signal | rms noise | corr for R = 1, 8 | '
+              'corr of the signal with the full-rollout signal')
+    for h in hs:
+        ha = np.array(hrows[h])
+        for name, (lo, hi) in STAGES.items():
+            sel = (ha[:, 0] >= lo) & (ha[:, 0] < hi)
+            sig, noi, full = ha[sel, 1], ha[sel, 2], ha[sel, 3]
+            p_noi = float(noi.mean())
+            p_sig = max(float((sig**2).mean()) - p_noi/a.R, 0.0)
+            snr1 = p_sig/max(p_noi, 1e-12)
+            cf = float(np.corrcoef(sig, full)[0, 1]) if sig.std() > 0 and full.std() > 0 else float('nan')
+            r = dict(rms_signal=float(np.sqrt(p_sig)), rms_noise=float(np.sqrt(p_noi)),
+                     corr1=float(np.sqrt(snr1/(1 + snr1))), corr8=float(np.sqrt(8*snr1/(1 + 8*snr1))),
+                     corr_with_full=cf)
+            res['horizons'][f'{h} / {name}'] = r
+            print(f'H = {h:2d}  {name:15s} | {r["rms_signal"]:6.2f} | {r["rms_noise"]:6.2f} | {r["corr1"]:4.2f} '
+                  f'{r["corr8"]:4.2f} | {cf:5.2f}', flush=True)
     if out:
         os.makedirs(os.path.dirname(out), exist_ok=True)
         json.dump(res, open(out, 'w'), indent=1)
