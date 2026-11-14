@@ -427,3 +427,38 @@ PROBLEM=mcl GPUS="2 3 4 5" SCALES=small \
 
 **评测**：三条 test 曲线队列放在 7 号卡上，11-13 约 10:48 起 7 号卡被别的用户占用，所有点都被拒绝，按用户要求 11:14 停掉。test 曲线和 best.pt 都还没评，checkpoint 每个 epoch 都在。
 
+
+### 9.1 补评 BA-[800-1200] 的 test（11-14 用户决定）
+
+**要做什么**：三组最小支配集 BA-large 训练（原版 CAM、CAMPrior 先验温度 0.1、CAMPrior 先验温度 1）还没有任何 test 结果。补评每组的 test 曲线（第 0、1、2、5、10、20…100 个 epoch）和 best.pt，1000 张 test 图，50 步 × 20 条链，和训练时的协议一样。同预算 RLSA 的 test 基线已有（108.71），不用重跑。
+
+**用哪几张卡**：
+- 先 `nvidia-smi` 看哪些卡空着。只用空卡，不碰别人的进程。
+- 三组训练（0、1、6 号卡）预计 11-14 20:30–21:30 EST 训完，训完这三张卡就空了。2–5 号卡上的最大团正则实验预计 11-14 13:30–16:00 训完，训完也可以用。
+- 一张卡放一条队列，三条并行。卡不够时可以把多条队列放在同一张卡上（会慢一些，显存够就行）。
+- 不必等训练结束才启动：`mds_curve.sh` 会跳过已有结果的点，checkpoint 还没出来就等；best.pt 等第 100 个 epoch 的 checkpoint 出来后才评（训练中 best.pt 还会变）。
+
+**命令**（`<gA>` `<gB>` `<gC>` 换成选好的卡号；必须带训练时的 flag，CAMPrior 会核对 `.prior.json`）：
+
+```bash
+git pull origin mis-asbs-energy-base
+mkdir -p runs/cam/mds_ba_large_test
+# 冒烟：8 张图、只评第 0 个 epoch，确认能跑，然后删掉这个结果目录再正式跑
+GPU=<gA> SCALE=large EXP=CAM_tau0.1_e100_s0 EPOCHS="0" NTEST=8 bash cam/scripts/mds/mds_curve.sh --tau0 0.1
+rm -rf runs/cam/mds_ba_large_test/CAM_tau0.1_e100_s0/ep000
+# 正式跑
+GPU=<gA> SCALE=large EXP=CAM_tau0.1_e100_s0 nohup bash cam/scripts/mds/mds_curve.sh --tau0 0.1 \
+  > runs/cam/mds_ba_large_test/CAM_tau0.1.queue.log 2>&1 &
+GPU=<gB> SCALE=large EXP=CAMPrior_p0.1_d20_e100_s0 nohup bash cam/scripts/mds/mds_curve.sh --method CAMPrior --prior_tau0 0.1 --prior_d 20 \
+  > runs/cam/mds_ba_large_test/CAMPrior_p0.1.queue.log 2>&1 &
+GPU=<gC> SCALE=large EXP=CAMPrior_p1_d20_e100_s0 nohup bash cam/scripts/mds/mds_curve.sh --method CAMPrior --prior_tau0 1 --prior_d 20 \
+  > runs/cam/mds_ba_large_test/CAMPrior_p1.queue.log 2>&1 &
+```
+
+11-13 被拒绝的那批点结果文件已被脚本删掉，会自动重评。结果在 `runs/cam/mds_ba_large_test/<实验名>/{epKKK,best}/test_log.txt`，第一行 `Avg. obj` 是平均支配集大小（越小越好）。
+
+**汇报**（写进本节和 `docs/status.md` §2.10，提交并推送，不提交 `runs/`）：
+- 三组的 test 曲线表和 best.pt，旁边放同预算 RLSA 108.71，以及 PT-Denoise 表 2 的参照（DiffUCO 104.01、PT-Denoise 103.84、Gurobi 104.01，采样预算不同）；
+- 三组 validation 的最终表（补到第 100 个 epoch），和 test 是否一致；
+- 每个点大约多少时间、有没有报错或显存问题。
+只汇报，不要自行改设定或重跑训练。
