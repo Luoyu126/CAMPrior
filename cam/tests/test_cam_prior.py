@@ -662,6 +662,53 @@ def test_8_simpol_labels():
         out.append(f'random residual == direct rollout incl. KL (max err {err:.1e})')
     return '; '.join(out)
 
+def test_9_prior_recenter():
+    """--prior_recenter on: zero residual gives the prior logits (the sampler is RLSA); the d-th
+    largest total logit of every graph and column equals the prior's; a common shift of the residual
+    within a graph and column changes nothing, also in the loss; the sidecar records the flag;
+    --prior_policy off is refused."""
+    from solvers.cam_prior import topd_threshold
+    with TmpDir() as tmp:
+        data = write_dataset(os.path.join(tmp, 'g'), [30, 22], 0.2, seed=11)
+        graph = load_batch(data, [0, 1])
+        solver = build(CAMPrior, data, residual_init='default', prior_recenter='on', prior_d=4)
+        gen = torch.Generator().manual_seed(5)
+        n, K = graph.num_nodes, 3
+        prior = 3*torch.randn(n, K, generator=gen)
+        res = torch.randn(n, K, generator=gen)
+        thr = lambda v: topd_threshold(v, graph.batch, graph.num_graphs, 4)
+        z0 = solver.total_logits(graph, prior, torch.zeros_like(prior))
+        assert torch.allclose(z0, prior, atol=1e-6), 'zero residual must give the prior'
+        z = solver.total_logits(graph, prior, res)
+        assert torch.allclose(thr(z), thr(prior), atol=1e-6), 'd-th largest must match the prior'
+        shift = torch.randn(graph.num_graphs, K, generator=gen)[graph.batch]*10
+        err = (solver.total_logits(graph, prior, res + shift) - z).abs().max().item()
+        assert err < 1e-4, f'a per-graph shift of the residual changed the logits by {err}'
+        mb = 6
+        sol, tim, w, tgt = _random_batch(graph, mb, gen)
+        pri = 3*torch.randn(mb, n, generator=gen)
+        lin = [m for m in solver.model.modules() if isinstance(m, nn.Linear)][-1]
+        l1 = CAMPrior.train_batch(solver, graph, [sol, tim, w, tgt, pri]).item()
+        with torch.no_grad():
+            lin.bias += 7.0
+        l2 = CAMPrior.train_batch(solver, graph, [sol, tim, w, tgt, pri]).item()
+        assert abs(l1 - l2) < 1e-4*max(1.0, abs(l1)), (l1, l2)
+        off = build(CAMPrior, data, residual_init='default', prior_d=4)
+        lin_off = [m for m in off.model.modules() if isinstance(m, nn.Linear)][-1]
+        m1 = CAMPrior.train_batch(off, graph, [sol, tim, w, tgt, pri]).item()
+        with torch.no_grad():
+            lin_off.bias += 7.0
+        m2 = CAMPrior.train_batch(off, graph, [sol, tim, w, tgt, pri]).item()
+        assert abs(m1 - m2) > 1e-3, 'without recentring a bias shift must change the loss'
+        assert solver.prior_meta()['prior_recenter'] == 'on' and off.prior_meta()['prior_recenter'] == 'off'
+        try:
+            build(CAMPrior, data, prior_recenter='on', prior_policy='off', residual_init='default')
+            raise AssertionError('--prior_recenter on with --prior_policy off must be refused')
+        except ValueError:
+            pass
+    return f'shift error {err:.1e}; loss {l1:.4f} == {l2:.4f} after a bias shift (off: {m1:.4f} -> {m2:.4f})'
+
+
 
 # ---------------------------------------------------------------- runner
 if __name__ == '__main__':
