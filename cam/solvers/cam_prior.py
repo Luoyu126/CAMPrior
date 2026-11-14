@@ -71,7 +71,15 @@ With both switched off the loss is CAM's loss plus a constant and the sampler is
 Training labels (docs/status.md; 11-10 decision): only the label changes, the rest of training not.
     --label_mode cam       CAM's lean target (default)
     --label_mode sim       simulated label: RLSA rollouts from the two candidate next states
-                           (solvers/sim_labels.py), on the GPUs of --label_gpus
+                           (solvers/sim_labels.py), on the GPUs of --label_gpus; --sim_rollouts R
+                           pairs per label, --sim_objective energy | decoded (11-14); on maximum
+                           clique the rollouts use the complement graph
+    --label_mode block     block-move label (solvers/block_labels.py, 11-14): per stored state, screen
+                           --block_seeds block moves with --block_screen_R RLSA rollout pairs, then
+                           the best one gets --block_eval_R fresh pairs; its gain G is the label of
+                           the nodes it flips, 0 elsewhere (MIS and maximum clique, one label call per
+                           graph of the batch; --label_frac 1;
+                           --label_states picks the labelled states; on the GPUs of --label_gpus)
     --label_mode lin       first-order label along the trajectory (solvers/lin_labels.py,
                            derivation in docs/label_correction.md); own perturbation only, unless
                            --lin_neighbors (adds the neighbour-reaction term, which diverges)
@@ -154,13 +162,28 @@ def add_cam_prior_args(parser):
                         '(otherwise an error)')
     g.add_argument('--residual_init', default='zero', choices=['zero', 'default'],
                    help='zero-initialise the output head, so that the untrained sampler is RLSA')
-    g.add_argument('--label_mode', default='cam', choices=['cam', 'sim', 'lin', 'dense', 'nosign', 'simpol'],
+    g.add_argument('--label_mode', default='cam', choices=['cam', 'sim', 'lin', 'dense', 'nosign', 'simpol', 'block'],
                    help="training label: cam = CAM's lean adjoint target; sim = simulated label, "
                         'RLSA rollouts from the two candidate next states (solvers/sim_labels.py); '
                         'lin = first-order label along the trajectory (solvers/lin_labels.py); '
                         'dense = lambda-weighted flip gradients of the later states (--label_lambda); '
                         "nosign = CAM's label without its sign factor; simpol = simulated label "
-                        'under the current sampler (prior + network)')
+                        'under the current sampler (prior + network); block = gain of the best '
+                        'screened block move (solvers/block_labels.py)')
+    g.add_argument('--sim_rollouts', type=int, default=1,
+                   help='sim labels: rollout pairs per label (mean over the pairs)')
+    g.add_argument('--sim_objective', default='energy', choices=['energy', 'decoded'],
+                   help='sim labels: g of a rollout end state, the training energy or -size of the '
+                        'greedily decoded solution (the validation objective)')
+    g.add_argument('--block_seeds', type=int, default=32,
+                   help='block labels: candidate block moves screened per labelled state')
+    g.add_argument('--block_screen_R', type=int, default=64,
+                   help='block labels: rollout pairs per candidate in the screening')
+    g.add_argument('--block_eval_R', type=int, default=128,
+                   help='block labels: fresh rollout pairs for the chosen block (its label)')
+    g.add_argument('--block_max_conf', type=int, default=2,
+                   help='block labels: seeds are unselected nodes with at most this many conflicts '
+                        'with the selected set')
     g.add_argument('--simpol_kl', default='on', choices=['on', 'off'],
                    help='simpol labels: add tau_train * KL to the reference along the rollout (soft value)')
     g.add_argument('--simpol_chunk', type=int, default=256,
@@ -251,9 +274,15 @@ class CAMPrior(CAM):
             raise ValueError('--prior_recenter on needs --prior_policy on')
         self.prior_kl_rlsa = args.prior_kl_ref == 'rlsa'
         self.label_mode = args.label_mode
-        if self.label_mode in ('sim', 'lin', 'simpol') and args.problem != 'mis':
+        if self.label_mode in ('lin', 'simpol') and args.problem != 'mis':
             # both rebuild the MIS energy from graph.edge_index / graph.A, not from envs/<problem>.py
             raise NotImplementedError(f'--label_mode {self.label_mode} supports --problem mis only')
+        if self.label_mode in ('sim', 'block') and args.problem not in ('mis', 'mcl'):
+            # MIS energy on graph.edge_index, or on its complement for maximum clique (sim_labels.py)
+            raise NotImplementedError(f'--label_mode {self.label_mode} supports --problem mis and mcl only')
+        if self.label_mode == 'block' and args.label_frac != 1:
+            raise ValueError('--label_mode block labels every node of a labelled state: use --label_states, '
+                             'not --label_frac')
         self.label_lambda = args.label_lambda
         if not 0 <= self.label_lambda <= 1:
             raise ValueError(f'--label_lambda must be in [0, 1], got {self.label_lambda}')
@@ -274,6 +303,7 @@ class CAMPrior(CAM):
         self._mask_gen = None
         self._label_iter = 0
         self._label_time = []
+        self._block_stats = []
 
         # inner schedule: RLSA's TempScheduler over the num_tp training steps (as in solvers/rlsa.py)
         prior_sched = TempScheduler(args.prior_schedule, args.prior_tau0, args.prior_tau1, 0, self.num_tp, 0)
@@ -411,7 +441,7 @@ class CAMPrior(CAM):
                 f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + msg + '\n')
 
     def label_pool(self):
-        if self.label_mode != 'sim' or not self.label_gpus:
+        if self.label_mode not in ('sim', 'block') or not self.label_gpus:
             return None
         if self._label_pool is None:
             self._label_pool = SimLabelPool(self.label_gpus, fallback=self.accelerator.device,
@@ -492,7 +522,9 @@ class CAMPrior(CAM):
                           edge_weight=None if ew is None else ew.cpu().numpy(),
                           b=graph.b.cpu().numpy(), temps=[self.prior_taus[j]*ratio for j in range(T)],
                           d=self.prior_d, eps=self.prior_eps, beta_prior=self.prior_beta,
-                          beta=self.args.beta, graph_key=self._label_iter)
+                          beta=self.args.beta, graph_key=self._label_iter,
+                          complement=self.args.problem == 'mcl', rollouts=self.args.sim_rollouts,
+                          objective=self.args.sim_objective)
             lab = simulated_labels(self.label_pool(), self.accelerator.device, common,
                                    Xn.to(torch.uint8).cpu().numpy(), sel.cpu().numpy(),
                                    sign.cpu().numpy(), starts, base + np.arange(T*Kc))
@@ -505,6 +537,51 @@ class CAMPrior(CAM):
                 self._label_log(f'[sim-labels] last 50 graphs: {np.mean(self._label_time):.2f}s/graph '
                                 f'for labels; pool stats {pool.stats if pool is not None else "in-process"}')
                 self._label_time = []
+
+        if self.label_mode == 'block':
+            # one label call per graph of the batch (each has its own conflict matrix)
+            t0 = time.time()
+            it = items.cpu().numpy()
+            self._label_iter += 1
+            base = (int(self.args.seed) + 1)*10**12 + self._label_iter*10**5
+            Xt_all = S.reshape(n, T*Kc)[:, items]                        # the labelled states X_t
+            starts = it//Kc                                              # their steps t (items t-major)
+            ptr = graph.ptr.tolist() if getattr(graph, 'ptr', None) is not None else [0, n]
+            ew = getattr(graph, 'edge_weight', None)
+            labs = []
+            for gi in range(len(ptr) - 1):
+                lo, hi = ptr[gi], ptr[gi + 1]
+                keep = (graph.edge_index[0] >= lo) & (graph.edge_index[0] < hi)
+                common = dict(kind='block', edge_index=(graph.edge_index[:, keep] - lo).cpu().numpy(), n=hi - lo,
+                              edge_weight=None if ew is None else ew[keep].cpu().numpy(),
+                              b=graph.b[lo:hi].cpu().numpy(), temps=[self.prior_taus[j]*ratio for j in range(T)],
+                              d=self.prior_d, eps=self.prior_eps, beta_prior=self.prior_beta,
+                              beta=self.args.beta, graph_key=(self._label_iter, gi),
+                              complement=self.args.problem == 'mcl', block_seeds=self.args.block_seeds,
+                              block_screen_R=self.args.block_screen_R, block_eval_R=self.args.block_eval_R,
+                              block_max_conf=self.args.block_max_conf)
+                lab = simulated_labels(self.label_pool(), self.accelerator.device, common,
+                                       Xt_all[lo:hi].to(torch.uint8).cpu().numpy(),
+                                       np.zeros((len(it), hi - lo), dtype=np.int64),
+                                       np.ones((len(it), hi - lo), dtype=np.float32), starts,
+                                       base + gi*10**4 + it)
+                labs.append(torch.as_tensor(lab, device=S.device))      # len(items) x n_g
+            lab = torch.cat(labs, 1)                                     # len(items) x n
+            target_all = torch.zeros(n, T*Kc, device=S.device)
+            target_all[:, items] = lab.T
+            target_all = target_all.reshape(n, T, Kc)
+            self._label_time.append(time.time() - t0)
+            gains = torch.cat([lb.abs().max(1).values*torch.sign(lb.sum(1)) for lb in labs])
+            self._block_stats.append((float(gains.mean()), float((gains > 0).float().mean()),
+                                      float(np.mean([float((lb != 0).float().sum(1).mean()) for lb in labs]))))
+            if len(self._label_time) == 50:
+                bs = np.array(self._block_stats)
+                pool = self._label_pool
+                self._label_log(f'[block-labels] last 50 graphs: {np.mean(self._label_time):.2f}s/graph; '
+                                f'chosen block gain mean {bs[:, 0].mean():.3f}, frac > 0 {bs[:, 1].mean():.2f}, '
+                                f'flipped nodes {bs[:, 2].mean():.1f}; pool stats '
+                                f'{pool.stats if pool is not None else "in-process"}')
+                self._label_time, self._block_stats = [], []
 
         if self.label_mode == 'simpol':
             if graph.num_graphs != 1:
@@ -560,7 +637,7 @@ class CAMPrior(CAM):
             all_prior = torch.stack(priors[sl], dim=-1)
             all_mask = mask[:, sl].permute(0, 2, 1)
             weight = torch.ones_like(all_time)*(t1_+1)/self.num_tp
-            if self.label_mode in ('sim', 'lin', 'dense', 'nosign', 'simpol'):
+            if self.label_mode in ('sim', 'lin', 'dense', 'nosign', 'simpol', 'block'):
                 target = target_all[:, sl].permute(0, 2, 1)
             else:
                 target = grad.unsqueeze(-1)*(2*all_data-1)               # CAM's target, as in _generate_data_cam
@@ -665,6 +742,9 @@ class CAMPrior(CAM):
                 'prior_recenter': getattr(a, 'prior_recenter', 'off'),
                 'label_mode': a.label_mode, 'label_frac': a.label_frac,
                 'label_lambda': getattr(a, 'label_lambda', 1.0),
+                'sim_rollouts': getattr(a, 'sim_rollouts', 1), 'sim_objective': getattr(a, 'sim_objective', 'energy'),
+                'block': {k: getattr(a, k, None) for k in ('block_seeds', 'block_screen_R', 'block_eval_R',
+                                                           'block_max_conf')},
                 'lin_neighbors': getattr(a, 'lin_neighbors', False)}
 
     def save_ckpt(self, save_file):
