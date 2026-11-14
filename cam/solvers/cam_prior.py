@@ -577,7 +577,8 @@ class CAMPrior(CAM):
             if len(self._label_time) == 50:
                 bs = np.array(self._block_stats)
                 pool = self._label_pool
-                self._label_log(f'[block-labels] last 50 graphs: {np.mean(self._label_time):.2f}s/graph; '
+                self._label_log(f'[block-labels] last 50 batches ({graph.num_graphs} graphs each): '
+                                f'{np.mean(self._label_time):.2f}s/batch; '
                                 f'chosen block gain mean {bs[:, 0].mean():.3f}, frac > 0 {bs[:, 1].mean():.2f}, '
                                 f'flipped nodes {bs[:, 2].mean():.1f}; pool stats '
                                 f'{pool.stats if pool is not None else "in-process"}')
