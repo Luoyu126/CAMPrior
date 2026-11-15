@@ -73,7 +73,7 @@ for _lr in ('2e-4', '1e-3'):
 for _lr in ('2e-4', '5e-4', '1e-3'):
     SLUL_GROUPS[f'DIFUSCO_cos_lr{_lr}'] = ('DIFUSCO', ['--diffusion_schedule', 'cosine'])
 for _lr in ('5e-4', '2e-3'):
-    for _tau in ('0.05', '0.1', '0.2'):
+    for _tau in ('0.1', '0.2', '0.4'):
         SLUL_GROUPS[f'DiffUCO_ann_lr{_lr}_tau{_tau}'] = ('DiffUCO', ['--noise_energy', 'annealing'])
         SLUL_GROUPS[f'DiffUCO_bern_lr{_lr}_tau{_tau}'] = ('DiffUCO', ['--noise_energy', 'bernoulli'])
 SLUL_OUT = 'runs/cam/slul_er700_test'

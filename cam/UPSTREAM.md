@@ -173,7 +173,7 @@ shows only the items below).
     `--last` now defaults to each run's own epoch count (the E in `_e<E>_s<seed>`).
     Groups `DIFUSCO_lr2e-4` and `DIFUSCO_lr1e-3` (the SL learning-rate check) test like `DIFUSCO`.
     Tuning-grid groups `DIFUSCO_cos_lr<lr>` (test with `--diffusion_schedule cosine`) and
-    `DiffUCO_{ann,bern}_lr<lr>_tau<tau0>` (test with their noise type).
+    `DiffUCO_{ann,bern}_lr<lr>_tau<tau0>` (test with their noise type); tau0 grid 0.1, 0.2, 0.4.
 37. `scripts/mis/infer_paths.py` takes optional `--diffuco` and `--difusco` checkpoints of the SL vs UL
     runs. DiffUCO uses the same flip-probability sampler as CAM. DIFUSCO reimplements the step of
     `solvers/difusco.py` (`categorical_posterior`, T=1000 linear, cosine inference) with the shared
