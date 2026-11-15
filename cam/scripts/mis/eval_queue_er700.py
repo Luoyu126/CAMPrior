@@ -68,6 +68,14 @@ SLUL_GROUPS = {
 # SL learning-rate check: the learning rate only matters in training, so these test like DIFUSCO.
 for _lr in ('2e-4', '1e-3'):
     SLUL_GROUPS[f'DIFUSCO_lr{_lr}'] = ('DIFUSCO', [])
+# Tuning grid (docs/20261116/slul_results.md section 4.2). The training noise schedule also sets the
+# DIFUSCO inference posterior, so cosine runs test with it; lr and tau0 only matter in training.
+for _lr in ('2e-4', '5e-4', '1e-3'):
+    SLUL_GROUPS[f'DIFUSCO_cos_lr{_lr}'] = ('DIFUSCO', ['--diffusion_schedule', 'cosine'])
+for _lr in ('5e-4', '2e-3'):
+    for _tau in ('0.05', '0.1', '0.2'):
+        SLUL_GROUPS[f'DiffUCO_ann_lr{_lr}_tau{_tau}'] = ('DiffUCO', ['--noise_energy', 'annealing'])
+        SLUL_GROUPS[f'DiffUCO_bern_lr{_lr}_tau{_tau}'] = ('DiffUCO', ['--noise_energy', 'bernoulli'])
 SLUL_OUT = 'runs/cam/slul_er700_test'
 SPLITS = {  # name: (test dir, num_t, output dir)
     'test': ('er_test', 50, 'runs/cam/mis_er700_test10'),
