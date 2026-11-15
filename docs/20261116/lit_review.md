@@ -80,7 +80,7 @@ CAM 论文在同一个代码库里重新实现了 DIFUSCO（SL）和 DiffUCO、S
 **两者都没有真正控制变量：**
 - ML4CO-Bench 正文说“网络结构和层数优先和原论文一致”（§4.1.2）。附录 C.2 写明：
   - UL 一行直接用 DiffUCO 的开源代码和预训练权重。
-  - SL 一行沿用 Fast T2T，也就是 DIFUSCO 的 12 层、宽 256 的各向异性 GNN。
+  - SL 一行的网络和训练设置“严格对齐 COExpander”（附录 C.2，原文约 L1108–1112）。COExpander 附录的超参数表里，MIS 用 12 层、宽 256 的 GNN，RB 小图训练 50 epoch、学习率 2e-4（`coexpander_icml25.txt` 约 L1392）。规模和 DIFUSCO 的各向异性 GNN 相同。
   - 所以 SL 和 UL 的网络、训练、解码全都不同。
 - CAM 的统一设置用的是 UL 一系的小网络（宽 64）：
   - 同一个 DIFUSCO 在 CAM 的设置下只有 18.74 / 37.32，在 ML4CO-Bench 的大网络下有 19.33 / 38.94。
