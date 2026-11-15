@@ -122,6 +122,28 @@ CAM 论文在同一个代码库里重新实现了 DIFUSCO（SL）和 DiffUCO、S
 
 ---
 
+### 1.5 控制变量比较学习范式的先例（11-15 补）
+
+**Joshi et al.，Learning the TSP Requires Rethinking Generalization（`2006.07054`）**：方法论上最接近我们的一篇，但问题是 TSP，对比的是 SL 和 RL。
+- 统一了整条流水线，摘要称做的是“controlled experiments”。
+- §5.5：**完全相同的模型**分别用 SL（模仿 Concorde）和 RL（最小化路径长度）训练。
+- **预算对齐方式**（§4 实验设置，原文约 L408–413）：SL 在 128 万个带标签的实例上训 10 epoch；RL 训 100 epoch，每个 epoch 随机生成 12.8 万个新实例。两边**看到的样本总数相同（1280 万）**，batch 和学习率也相同。
+- **结论 1：学习范式和解码方式有交互。** 贪心解码时 RL 更好；束搜索或采样时 SL 更好。原因是 RL 的预测非常自信，SL 用 teacher forcing 训练，分布更平，更适合采样（§5.5、附录 C）。
+- **结论 2：扩大规模时 SL 被标签数据卡住**（§5.6）。模型翻倍、数据加 10 倍后，RL 一直在新样本上训练，持续变好；SL 只能反复用同一批 128 万个带标签的样本，到某一点就不涨了。
+- **对我们的启发**：
+  - 预算可以按“看到的训练图数 / 梯度步数”对齐，不必按 epoch 数。
+  - 解码方式要固定，最好两种都报：我们统一用 20 次采样，按它的结论这对 SL 相对有利。
+  - SL 的上限可能受标签数据量限制。我们 SL 只有 16,284 张带标签的图，UL 却可以无限生成新图，这一点值得单独测。
+
+**Yehuda et al.，It's Not What Machines Can Learn, It's What We Cannot Teach（ICML 2020，`2002.09398`）**：
+- 定理：在 NP ≠ coNP 的假设下，任何多项式时间的数据生成器，为 NP 难的**分类（判定）任务**生成的样本，实际上都来自一个更容易的子问题（NP ∩ coNP）。
+- 实证：在合取查询包含（Conjunctive Query Containment）上，常见的数据生成方式会产生有偏的数据集，使人高估模型准确率。
+- **和我们的关系比较间接**：
+  - 它讲的是判定问题的数据生成器，不是优化问题的求解器标签。
+  - 我们的标签来自 KaMIS，不是多项式时间的生成器，所以定理的前提并不直接成立。
+  - 可以引用它来说明“SL 的瓶颈在于很难造出足够大、无偏的带标签数据”，但不能说它证明了“用求解器标签训练有根本困难”。
+  - 11-15 的聊天里我曾凭记忆这样概括过它，那是说过头了。
+
 ## 前提 2：SL 方法都是“从标签出发，不断加噪声到平滑分布，再学反向”？
 
 **结论：成立，但“加高斯噪声”要改成“加和问题无关、每个变量独立的噪声”。** 目前找到的 SL 方法，前向过程都没用能量。能量只在测试时或微调时进来。
@@ -308,6 +330,8 @@ CAM 论文附录 B.2 的统一设置就是用这套代码跑的。见 1.2(a)：E
 | `2505.16952` | FrontierCO（ICLR 2026） |
 | `2502.03669` | Unrealized Expectations（Wu, Zhao, Arora, TMLR 2026） |
 | `2201.10494` | What's Wrong with Deep Learning in Tree Search（Böther et al., ICLR 2022） |
+| `2006.07054` | Learning the TSP Requires Rethinking Generalization（Joshi et al., 2020/2022） |
+| `2002.09398` | It's Not What Machines Can Learn, It's What We Cannot Teach（Yehuda et al., ICML 2020） |
 | `2510.08627` | DDEA，扩散 + 进化算法求解 MIS |
 | `2406.01661` | DiffUCO（Sanokowski et al., ICML 2024） |
 | `2502.08696` | SDDS（Sanokowski et al., ICLR 2025） |
