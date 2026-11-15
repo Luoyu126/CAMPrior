@@ -242,4 +242,6 @@
 - UL 方法（DiffUCO、CAM、SDDS）不用标签，不受影响。
 - 要找 Shengyu 确认：表 1 的 DIFUSCO 是哪天、用哪份代码训的。
 
+**用户决定（11-15）**：DIFUSCO 每步 50 张图（对应 5 × 10 卡），和 DiffUCO 的训练对齐。我们单卡训练时直接用 batch 50；网络用的 GraphNorm 按单张图归一化，所以单卡 50 张和 10 卡 × 5 张在数学上等价，只差随机性。注：DiffUCO 出表那次每步是 4 × 10 = 40 张图（每张图再采 10 条轨迹）。
+
 **我们调参的起点**：以上面三份脚本的共同设置为中心，学习率 2e-4、weight decay 1e-4、200 epoch、patience 20、总 batch 40–50、cosine 推理。用修好的代码（`cam/UPSTREAM.md` 第 39、40 条）。具体网格待定。
