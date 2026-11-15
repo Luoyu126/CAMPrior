@@ -114,9 +114,15 @@ class Dataset(Dataset):
                 solution = None
         else:
             solution = None
-        self._last_solution = solution
             
         G = nx.read_gpickle(self.files[idx])
+        if solution is not None:
+            # upstream 1d3f4ae: the .result labels are indexed by sorted(G.nodes()), while
+            # from_networkx below indexes nodes by G's insertion order: realign the label to that order
+            nodes = list(G.nodes())
+            sorted_idx = {v: j for j, v in enumerate(sorted(nodes))}
+            solution = [solution[sorted_idx[v]] for v in nodes]
+        self._last_solution = solution
         data = from_networkx(G)
         if not is_undirected(data.edge_index):
             data.edge_index = to_undirected(data.edge_index)

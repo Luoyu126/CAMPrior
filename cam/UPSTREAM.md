@@ -185,6 +185,13 @@ shows only the items below).
     identical schedule). With T=1000 linear training noise and the cosine inference schedule, the first
     ~15 of 50 steps keep less than 5% of the signal; this flag tests whether those steps are wasted.
     The initial state stays uniform, slightly off the forward marginal for small S.
+39. `datasets/mis.py`: ported from upstream commit `1d3f4ae` (2026-11-07, "Fix MIS label node
+    order"). The `.result` labels are indexed by `sorted(G.nodes())`, but `from_networkx` indexes nodes
+    by insertion order; the label is now realigned to the insertion order. Here the realignment is done
+    before the label is stored in the graph cache, so cached labels are aligned too. On our ER-[700-800]
+    graphs insertion order equals sorted order (checked on all valid/test graphs and 300 sampled training
+    graphs of the old and new pools), so ER labels and existing caches are unchanged; RB graphs were
+    affected.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
