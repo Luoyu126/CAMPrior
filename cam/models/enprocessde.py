@@ -1,4 +1,5 @@
 import torch
+import torch.utils.checkpoint
 from torch import nn
 from torch_scatter import scatter_add
 from torch_geometric.utils import add_remaining_self_loops
@@ -87,6 +88,10 @@ class LinearMessagePassing(nn.Module):
 class EncodeProcessDecode(nn.Module):
     def __init__(self, hidden_dim, n_layers, out_channels, time_scale=1000, graph_norm=True, **kwargs):
         super(EncodeProcessDecode, self).__init__()
+        # Local addition (see UPSTREAM.md): honour --use_activation_checkpoint, which the solvers
+        # already pass in; recomputes each message-passing layer in the backward pass (same gradients,
+        # less memory), e.g. for DiffUCO's full-trajectory loss on 11 GB cards.
+        self.use_activation_checkpoint = kwargs.get('use_activation_checkpoint', False)
         self.time_embed_dim = hidden_dim // 2
         self.node_encoder = ReLUMLP(1, hidden_dim, 2, hidden_dim)
         self.convs = nn.ModuleList()
@@ -113,7 +118,10 @@ class EncodeProcessDecode(nn.Module):
         X = self.node_encoder(solution)
 
         for conv in self.convs:
-            X = conv(X, adj, batch)
+            if self.use_activation_checkpoint and self.training and torch.is_grad_enabled():
+                X = torch.utils.checkpoint.checkpoint(conv, X, adj, batch, use_reentrant=False)
+            else:
+                X = conv(X, adj, batch)
         X = self.node_decoder(X)
         return self.head(X)
 
