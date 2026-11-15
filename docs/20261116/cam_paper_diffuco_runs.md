@@ -60,6 +60,62 @@
 
 BA 图上的 3 个 run 是最小支配集（MDS），不是 MIS。
 
+### 3.1 RB-[200-300] 上出表 1 的那次 DiffUCO：完整配置
+
+**结果**：论文表 1 RB-[200-300] 的 DiffUCO 19.88 就是这次。
+- 训练 run：`run-20260513_214606-gcgve1vl`，05-13 21:46（UTC）开始，代码是 RiemannCO 的 `ebae8b8`，sa 上 10 张 2080 Ti 做数据并行。
+- 验证集最好 20.27，在第 137 个 epoch；第 337 个 epoch 早停（137 + patience 200）。
+- 权重：`/usr1/shengyuf/RiemannCO/mis_rb_small_diffuco/diffuco_annealing/best.pt`。文件修改时间 05-13 22:51，等于开始时间加 137 个 epoch × 每 epoch 约 28 秒，和第 137 个 epoch 对得上。
+- test（1000 张图）测过两次，都用的这个权重，启动参数和训练相同，只是不加 `--do_train`：
+  - 05-14 00:30，代码 `ebae8b8`：19.872；
+  - 05-22 15:27，代码 `7b03f86`：19.876（四舍五入为论文的 19.88）。
+
+**启动命令**（来自 `wandb-metadata.json`，原样照抄；用 `accelerate launch --num_processes 10` 启动）：
+
+```
+main.py --train_path /usr1/shengyuf/MIS/RB_small_train --valid_path /usr1/shengyuf/MIS/RB_small_valid
+  --test_path /usr1/shengyuf/MIS/RB_small_test --problem mis
+  --samples_per_epoch 4000 --valid_sample 64 --batch_size 4 --mini_batch_size 1
+  --num_t 50 --num_k 20 --num_tp 6 --num_kp 10 --num_h 64 --num_l 8
+  --tau0 0.1 --method DiffUCO --model EncodeProcessDecode --do_train --noise_energy annealing
+  --optimizer RAdam --grad_clip 1 --beta 1.2 --lr 0.001 --epochs 1000 --N_anneal 1000
+  --patience 200 --lr_scheduler cosine-decay
+  --save_dir /usr1/shengyuf/RiemannCO/mis_rb_small_diffuco/diffuco_annealing
+  --wandb_name mis_rb_small_diffuco --wandb_run_name diffuco_annealing
+```
+
+**逐项含义**：
+
+| 类别 | 参数 | 值 |
+|---|---|---|
+| 网络 | `model` / 层数 `num_l` / 宽度 `num_h` | EncodeProcessDecode / 8 / 64，不输入时间 |
+| 训练数据 | 训练集 | `RB_small_train`，4000 张 |
+| | 每 epoch 图数 `samples_per_epoch` | 4000（正好一整轮） |
+| | 每卡 batch `batch_size` × 进程数 | 4 × 10 = 每步 40 张图，每 epoch 100 步 |
+| | `mini_batch_size` | 1 |
+| 扩散 | 训练轨迹步数 `num_tp` | 6 |
+| | 每张图的训练轨迹数 `num_kp` | 10 |
+| | 噪声 `noise_energy` | annealing |
+| | `diffusion_schedule` | linear（默认值） |
+| 能量 | 冲突惩罚 `beta` | 1.2 |
+| 温度 | `tau0` → `tau1`，`temp_schedule` | 0.1 → 0，线性，在 `N_anneal` = 1000 个 epoch 内退完 |
+| 优化 | 优化器 / 学习率 / 衰减 | RAdam / 1e-3 / cosine，按 1000 个 epoch 算 |
+| | 梯度裁剪 / weight decay | 1 / 1e-4（默认值） |
+| | 精度 | fp32（脚本里 `--mixed_precision=no`） |
+| 训练长度 | `epochs` / `patience` | 最多 1000 / 验证 200 个 epoch 不涨就早停 |
+| 验证 | `valid_sample` | 64 张，分到 10 卡补齐成每卡 7 张，实际 70 张 |
+| 推理 | 步数 `num_t` × 次数 `num_k` | 50 × 20，`inference_schedule` linear（默认值） |
+| 随机种子 | `seed` | 0（默认值） |
+
+“默认值”一项取自这次 run 的 `config.yaml`（argparse 的实际取值），启动命令里没写。
+
+**时间和卡时**：每 epoch 约 28 秒（10 卡，含验证）。到第 137 个 epoch 约 64 分钟，即约 11 卡时；跑到早停约 2.6 小时，即约 26 卡时。
+
+**要注意**：
+- 选权重时温度只退到 τ ≈ 0.1 × (1 − 137/1000) ≈ 0.086，学习率也还在 cosine 衰减的前段，不是训到收敛。
+- 08-28 的脚本 `scripts/mis/mis_rb_small_diffuco.sh` 和这次不同：bernoulli、`num_tp` 12、`num_kp` 20、每 epoch 1000 张。复现以上面的启动命令为准。
+- 我们单卡复现时，每步 40 张图要用梯度累积补齐（每卡 4 张 × 累积 10 步），否则等效 batch 不同。
+
 ## 4. 对实验计划的影响
 
 见 `experiment_plan.md` §6.1。

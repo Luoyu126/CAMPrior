@@ -183,7 +183,7 @@
   | DiffUCO | ER | 1000 | 1 | 100 | 10 |
   | DIFUSCO（09-30 起的消融） | RB-small | 4000（整个训练集） | 5 | 80 | 10 |
 
-  验证集也被分到 10 卡上：ER 是 64 张，补齐到每卡 7 张，一共 70 张，所以分数都是 1/70 的倍数；RB-small 是 500 张，每卡 50 张。
+  验证集也被分到 10 卡上：DiffUCO 用 64 张（ER 和 RB-small 都是），补齐到每卡 7 张，一共 70 张，所以分数都是 1/70 的倍数；DIFUSCO 的消融不限张数，RB-small 验证集 500 张，每卡 50 张。
 - **等效 batch**：DiffUCO 在 RB-small 上每步 40 张图（4 × 10），在 ER 上每步 10 张；DIFUSCO 每步 50 张（5 × 10）。我们单卡复现时，要么用梯度累积补到同样的等效 batch，要么把 batch 当成一个要说明的差异。
 - **卡时**：前面的时间都是 10 卡的墙钟时间，换成卡时要乘 10。
-- 本地 wandb 里没找到 RB-small 上出表 1 的 DIFUSCO run，只有 09-30 以后的 50 epoch 消融（验证最好 17.9–18.9）。DiffUCO 出表的 RB-small run 在：annealing，05-13 21:46 开始，验证最好 20.27（第 137 个 epoch），test 19.87、19.88。
+- 本地 wandb 里没找到 RB-small 上出表 1 的 DIFUSCO run，只有 09-30 以后的 50 epoch 消融（验证最好 17.9–18.9）。DiffUCO 出表的 RB-small run 在：annealing，05-13 21:46 开始，验证最好 20.27（第 137 个 epoch），test 19.87、19.88。完整配置见 `cam_paper_diffuco_runs.md` §3.1。
