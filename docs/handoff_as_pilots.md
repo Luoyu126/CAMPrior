@@ -41,8 +41,8 @@
 
 1. **代码**
    ```bash
-   git clone git@github.com:Luoyu126/Schr-dinger-Bridge.git
-   cd Schr-dinger-Bridge && git checkout mis-asbs-energy-base
+   git clone git@github.com:Luoyu126/CAMPrior.git
+   cd CAMPrior && git checkout mis-asbs-energy-base
    ```
 2. **环境**：Python 3.9 的新 venv。原机器用的版本：
    ```bash
