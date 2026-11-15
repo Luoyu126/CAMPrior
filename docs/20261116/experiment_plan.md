@@ -200,9 +200,33 @@
 
 | 脚本 | 时间 | 每卡 batch × 卡数 | 学习率 / weight decay | epoch / patience | 其他 |
 |---|---|---|---|---|---|
-| `mis/mis_rb_small_difusco.sh` | 08-28 | 5 × 10 = 50 | 2e-4 / 1e-4 | 200 / 20 | `num_tp` 1000，推理 cosine，50 步 × 20 次，验证 64 张 |
+| `mis/mis_rb_small_difusco.sh` | 内容最后改于 06-06（08-28 只是文件时间） | 5 × 8 = 40（git 里的 `config.sh`）；本地未提交的 `config.sh` 是 10 卡 = 50 | 2e-4 / 1e-4 | 200 / 20 | `num_tp` 1000，推理 cosine，50 步 × 20 次，验证 64 张；**没有 `--do_train`**，照原样运行只做 test。逐项核对见下 |
 | `train_orig.sh`（由 `run_orig_sweep.sh` 调用，3 个种子） | 11-07 | 40 ÷ 卡数，总 batch 固定 40（注释：“原始 run 是 8 卡 × 5”） | 2e-4 / 1e-4 | 200 / 20 | 同上；种子可设 |
 | `mis/rb_small_time_ablation.py` 等 | 09-30 起 | 5 × 10 | 2e-4 | 50 / 51 | 网络加时间输入的消融 |
+
+**`mis/mis_rb_small_difusco.sh` 逐项核对（11-15）**：对照 RiemannCO 当前代码 `main.py` 的默认值和 `solvers/meta_solver.py` 的训练循环。
+
+| 类别 | 参数 | 值 | 来源 |
+|---|---|---|---|
+| 网络 | `model` / `num_l` / `num_h` | EncodeProcessDecode / 8 / 64，输出 2 类 | 脚本 |
+| 扩散 | 训练步数 `num_tp` / 加噪表 `diffusion_schedule` / `time_scale` | 1000 / linear / 1000 | 脚本 / 默认 / 默认 |
+| 优化 | 优化器 / 学习率 / weight decay | AdamW / 2e-4 / 1e-4 | 默认 / 脚本 / 脚本 |
+| | 学习率表 | cosine 衰减到 0，按“200 epoch × 每 epoch 步数”算 | 默认 |
+| | 梯度裁剪 | 无 | 默认 |
+| | 精度 | fp32（`--mixed_precision=no`） | 脚本 |
+| 数据 | 训练集 | `RB_small_train` 全部 4000 张，每个 epoch 过一遍（SL 不看 `samples_per_epoch`） | 默认 |
+| | 每卡 batch × 卡数 | 5 × `$PROCESSES`：git 里是 8（每步 40 张，每 epoch 100 步），本地是 10（每步 50 张，80 步） | 脚本 + `config.sh` |
+| 训练长度 | `epochs` / `patience` | 最多 200 / 验证 20 个 epoch 不涨就停 | 脚本 |
+| 验证 | `valid_sample`（argparse 前缀匹配到 `valid_samples`） | 64 张（8 卡正好 64；10 卡补成 70） | 脚本 |
+| 推理 | `num_t` × `num_k` / 推理时间表 | 50 步 × 20 次 / cosine | 脚本 |
+| 其他 | 种子 | 0 | 默认 |
+
+- 学习率表用的是数据分到各卡之前的步数（每 epoch 800 步）。但 accelerate 每次更新会让学习率表走“卡数”步，两者正好抵消，所以学习率确实在 200 个 epoch 内衰减到 0，没有问题。
+- **这份脚本不是出表时的训练命令**：
+  - 它没有 `--do_train`，照原样跑只会读 `save_dir/best.pt` 做 test。
+  - 它的内容是 06-06 的“clean”提交改的，那是 Shengyu 在笔记本上为公开代码整理脚本，在论文（arXiv 2605，5 月）之后。
+  - git 里的 `config.sh` 在那次提交里是 `DATADIR=/mnt/task_runtime`、`PROCESSES=8`，看起来是另一个集群的路径。
+- 更早的两个版本（04-02、04-18）是训练命令，带 `--do_train`：每卡 batch 8，梯度累积 2，最多 50 个 epoch，验证时只采 8 次（`num_k 8`），学习率同为 2e-4，推理 cosine。当时 `PROCESSES=8`，等效 batch 8 × 8 × 2 = 128。时间上它更可能接近表 1 那次，但没有运行记录能证实。
 
 三份的核心设置相同：学习率 2e-4，weight decay 1e-4，最多 200 个 epoch，验证 20 个 epoch 不涨就停，训练 1000 步扩散，推理用 cosine 时间表 50 步 × 20 次。没有一份能对上表 1 那次 run。
 
