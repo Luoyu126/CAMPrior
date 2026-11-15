@@ -129,12 +129,16 @@
 | DiffUCO 冲突惩罚 β | **1.2** | 1.02（默认） |
 | DiffUCO 噪声 | bernoulli（脚本里） | bernoulli 和 annealing 都跑 |
 | DiffUCO epoch | 1000（温度在 1000 epoch 内退完） | 100 |
-| 硬件 | A6000，`PROCESSES=10`（数据并行），Slurm | 2080 Ti 单卡 |
+| 硬件 | `PROCESSES=10`（10 卡数据并行；sa 正好 10 张 2080 Ti），`DATADIR=/usr1/shengyuf` 在 sa 上存在 | 2080 Ti 单卡 |
 
 **影响**：
 - DiffUCO 训练轨迹从 50 步改成 12 步，每个 epoch 的计算量约降到 1/4，§3 的卡时估计要重算。12 步也更接近 DiffUCO 原文的做法：SDDS 论文附录 A.10 提到 DiffUCO 原文只用 3–6 步，SDDS 用到 12 步。
 - β 从 1.02 改成 1.2 会改变能量地形，属于 UL 的超参。
 - 脚本未必就是 Table 1 的最终配置：脚本里写的是 bernoulli，附录却说大多用 annealing。DIFUSCO 脚本的 test 路径指向 `er_large_test`。
+
+**更正（11-15）**：之前写的“A6000”没有依据。CAM 论文正文和附录都没提 GPU 型号。`config.sh` 里只有一行没人引用的 Slurm 默认参数 `--gres=gpu:A6000:8`，而且它和同文件里的 `PROCESSES=10` 也对不上。`handoff.md` 里“CAM 论文用的是 48 GB 的 A6000”同样没有出处。数据目录在 sa 上，10 个进程也正好对应 sa 的 10 张卡，和 Shengyu 说的“用这个集群跑的”一致。
+
+**sa 上的实际产物**：`/usr1/shengyuf/RiemannCO/mis_er_diffuco/diffuco_{annealing,bernoulli}/best.pt`，2026-05，两种噪声都有。文件里只有网络权重，没有存超参。可以直接用我们的评测流程在 128 张 test 图上评一遍，核对 CAM 表 1 的 DiffUCO 43.98。没找到 DIFUSCO 的权重。
 
 **要向 Shengyu 确认**：
 1. Table 1 里 ER-[700-800] 的 DIFUSCO、DiffUCO 最终各用的哪组超参，包括噪声类型、`num_tp`、β、epoch 数、进程数。
