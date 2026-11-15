@@ -54,7 +54,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PROJECT=mis_er700 EXP=<组名>_
 
 2. **代码**
    ```bash
-   git pull   # 或者重新 clone git@github.com:Luoyu126/Schr-dinger-Bridge.git
+   git pull   # 或者重新 clone git@github.com:Luoyu126/CAMPrior.git
    git checkout mis-asbs-energy-base
    ```
 

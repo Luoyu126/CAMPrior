@@ -4,7 +4,7 @@ Guidelines for any AI coding agent working in this repository.
 
 ## Repository
 
-- Remote: `origin` → https://github.com/Luoyu126/Schr-dinger-Bridge.git
+- Remote: `origin` → https://github.com/Luoyu126/CAMPrior.git
 - Default branch on the remote: `main`
 
 ## Git workflow
@@ -15,10 +15,10 @@ Guidelines for any AI coding agent working in this repository.
 
 ### Pushing from the sa cluster (sa.lti.cs.cmu.edu)
 - The SSH key for pushing is `/home/shengyuf/yunyi/.ssh/id_ed25519_github` (public key next to it, `.pub`). GitHub's host key is pinned in `/home/shengyuf/yunyi/.ssh/known_hosts`. It is deliberately not in `~/.ssh`, because files on this cluster go only under `/home/shengyuf/yunyi/`.
-- The clone at `/home/shengyuf/yunyi/Schrödinger Bridge/Schr-dinger-Bridge` already uses it: fetch stays on HTTPS, push goes to `git@github.com:Luoyu126/Schr-dinger-Bridge.git`. In a fresh clone, set it up again:
+- The clone at `/home/shengyuf/yunyi/Schrödinger Bridge/Schr-dinger-Bridge` already uses it: fetch stays on HTTPS, push goes to `git@github.com:Luoyu126/CAMPrior.git`. In a fresh clone, set it up again:
   ```bash
   git config --local core.sshCommand "ssh -i /home/shengyuf/yunyi/.ssh/id_ed25519_github -o IdentitiesOnly=yes -o UserKnownHostsFile=/home/shengyuf/yunyi/.ssh/known_hosts -o StrictHostKeyChecking=yes"
-  git remote set-url --push origin git@github.com:Luoyu126/Schr-dinger-Bridge.git
+  git remote set-url --push origin git@github.com:Luoyu126/CAMPrior.git
   ```
 - Never print, copy, or commit the private key.
 
