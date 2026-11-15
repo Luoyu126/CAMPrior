@@ -161,3 +161,29 @@
 - **我们之前的 DiffUCO run**（`num_tp=50`、β 1.02、学习率 5e-4、100 个 epoch，每 epoch 同样 1000 张图）和表 1 的配置差得较远，只作参考。
 
 **另外**：`/home/shengyuf/CAM4CO/scripts/config.sh` 里以明文写着一个 wandb API key，我们没用，也没复制，建议提醒 Shengyu 处理。
+
+### 6.2 改到 RB-[200-300] 上做；当时每次实验用了几张卡（11-15）
+
+**用户决定**：SL 和 UL 对比的验证先全部放在 RB-[200-300]（RB-small）上做。原因：
+- 图小：200–300 个节点、3–4 千条边。ER-[700-800] 有 4–4.5 万条边。
+- 按每张图算，训练快约 9 倍（DiffUCO 约 7 ms 对 66 ms）。
+- CAM 表 1 里 UL 在这里领先得更明显：DIFUSCO 18.74（差 6.77%），DiffUCO 19.88（差 1.09%）。
+
+上面各节的网格、卡时和阶段安排都是按 ER 写的，要按 RB-small 重排。注意：RB 图的节点插入顺序和编号顺序不一致，11-15 之前加载出来的 RB 标签全是错位的，现在已修好（`cam/UPSTREAM.md` 第 39 条）。所以 RB 上以前所有用到标签的 SL 结果都要重跑。
+
+**每次实验都是单机 10 卡（10 张 2080 Ti，即 sa 整台机器）的数据并行**：
+- 启动脚本：`accelerate launch --num_processes=$PROCESSES`，`config.sh` 里 `PROCESSES=10`。
+  - 两份脚本都比 5 月的 run 晚：脚本是 08-28 的，`config.sh` 11-07 改过。所以下面又用日志核对了一遍。
+  - Shengyu 后来的 RB-small 消融脚本（`rb_small_time_ablation.py`）里明写了 `--num_processes 10`，`CUDA_VISIBLE_DEVICES=0,...,9`。
+- 日志核对：RiemannCO 每个 epoch 的步数是 `samples_per_epoch // 进程数 // batch_size`。
+
+  | 方法 | 数据集 | 每 epoch 图数 | 每卡 batch | 日志里每 epoch 步数 | 推出的进程数 |
+  |---|---|---|---|---|---|
+  | DiffUCO | RB-small | 4000 | 4 | 100 | 10 |
+  | DiffUCO | ER | 1000 | 1 | 100 | 10 |
+  | DIFUSCO（09-30 起的消融） | RB-small | 4000（整个训练集） | 5 | 80 | 10 |
+
+  验证集也被分到 10 卡上：ER 是 64 张，补齐到每卡 7 张，一共 70 张，所以分数都是 1/70 的倍数；RB-small 是 500 张，每卡 50 张。
+- **等效 batch**：DiffUCO 在 RB-small 上每步 40 张图（4 × 10），在 ER 上每步 10 张；DIFUSCO 每步 50 张（5 × 10）。我们单卡复现时，要么用梯度累积补到同样的等效 batch，要么把 batch 当成一个要说明的差异。
+- **卡时**：前面的时间都是 10 卡的墙钟时间，换成卡时要乘 10。
+- 本地 wandb 里没找到 RB-small 上出表 1 的 DIFUSCO run，只有 09-30 以后的 50 epoch 消融（验证最好 17.9–18.9）。DiffUCO 出表的 RB-small run 在：annealing，05-13 21:46 开始，验证最好 20.27（第 137 个 epoch），test 19.87、19.88。
