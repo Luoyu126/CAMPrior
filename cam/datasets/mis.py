@@ -1,4 +1,5 @@
 import os
+import hashlib
 import numpy as np
 import torch
 import pickle
@@ -68,6 +69,41 @@ class Dataset(Dataset):
         return data
 
     def load_gpickle(self, idx):
+        # Local addition (see UPSTREAM.md): with CAM_GRAPH_CACHE=<dir> the parsed graph (edge_index
+        # as loaded below, int16, plus the label) is kept as a .pt file, because parsing a dense
+        # ER-[700-800] gpickle with networkx takes ~1-3 s per graph and starves supervised
+        # training, which reads every training graph each epoch. The cached Data is identical.
+        cache_dir = os.environ.get('CAM_GRAPH_CACHE')
+        if cache_dir:
+            src = os.path.abspath(self.files[idx])
+            key = hashlib.sha1(os.path.dirname(src).encode()).hexdigest()[:12]
+            cache_file = os.path.join(cache_dir, key, os.path.basename(src) + '.pt')
+            if os.path.exists(cache_file):
+                c = torch.load(cache_file, weights_only=True)
+                return self._make_data(c['edge_index'].long(), int(c['num_nodes']), c['solution'], idx)
+        data = self._load_gpickle_uncached(idx)
+        if cache_dir:
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+            tmp = f'{cache_file}.{os.getpid()}.tmp'
+            sol = None if self._last_solution is None else torch.tensor(self._last_solution, dtype=torch.int8)
+            assert data.num_nodes < 32768
+            torch.save({'edge_index': data.edge_index.to(torch.int16), 'num_nodes': data.num_nodes,
+                        'solution': sol}, tmp)
+            os.replace(tmp, cache_file)
+        return data
+
+    def _make_data(self, edge_index, num_nodes, solution, idx):
+        data = Data(edge_index=edge_index, num_nodes=num_nodes)
+        data.edge_weight = torch.ones_like(data.edge_index[0], dtype=self.dtype)/2
+        if solution is None:
+            data.x = torch.ones(data.num_nodes,1, dtype=self.dtype)
+        else:
+            data.x = solution.reshape(data.num_nodes,1).to(self.dtype)
+        data.b = -torch.ones_like(data.x)
+        data.idx = idx
+        return data
+
+    def _load_gpickle_uncached(self, idx):
         if self.data_label_path is not None:
             file_name = os.path.basename(self.files[idx])
             anno_path = os.path.join(self.data_label_path, file_name.replace('.gpickle', '_unweighted.result'))
@@ -78,6 +114,7 @@ class Dataset(Dataset):
                 solution = None
         else:
             solution = None
+        self._last_solution = solution
             
         G = nx.read_gpickle(self.files[idx])
         data = from_networkx(G)
