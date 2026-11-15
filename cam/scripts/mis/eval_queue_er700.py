@@ -66,7 +66,7 @@ SLUL_GROUPS = {
     'DiffUCO_ann': ('DiffUCO', ['--noise_energy', 'annealing']),
 }
 # SL learning-rate check: the learning rate only matters in training, so these test like DIFUSCO.
-for _lr in ('2e-4', '1e-3'):
+for _lr in ('2e-4', '5e-4', '1e-3'):
     SLUL_GROUPS[f'DIFUSCO_lr{_lr}'] = ('DIFUSCO', [])
 # Tuning grid (docs/20261116/slul_results.md section 4.2). The training noise schedule also sets the
 # DIFUSCO inference posterior, so cosine runs test with it; lr and tau0 only matter in training.
@@ -88,7 +88,9 @@ def log(msg):
 
 
 def group_of(exp):
-    return re.sub(r'_e\d+_s\d+$', '', exp)
+    # 'pool_' runs train on the 163,840-graph pool (docs/20261116/experiment_plan.md); they test like
+    # the group without the prefix.
+    return re.sub(r'_e\d+_s\d+$', '', re.sub(r'^pool_', '', exp))
 
 
 def epochs_of(exp):

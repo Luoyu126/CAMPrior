@@ -174,6 +174,8 @@ shows only the items below).
     Groups `DIFUSCO_lr2e-4` and `DIFUSCO_lr1e-3` (the SL learning-rate check) test like `DIFUSCO`.
     Tuning-grid groups `DIFUSCO_cos_lr<lr>` (test with `--diffusion_schedule cosine`) and
     `DiffUCO_{ann,bern}_lr<lr>_tau<tau0>` (test with their noise type); tau0 grid 0.1, 0.2, 0.4.
+    Runs named `pool_<exp>` train on the 163,840-graph pool (`docs/20261116/experiment_plan.md`) and
+    test like `<exp>`; `DIFUSCO_lr5e-4` is a group too.
 37. `scripts/mis/infer_paths.py` takes optional `--diffuco` and `--difusco` checkpoints of the SL vs UL
     runs. DiffUCO uses the same flip-probability sampler as CAM. DIFUSCO reimplements the step of
     `solvers/difusco.py` (`categorical_posterior`, T=1000 linear, cosine inference) with the shared
