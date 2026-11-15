@@ -15,6 +15,11 @@ replaced) is left alone and counted as load. A checkpoint is used only once it i
 old (not while it is being written). A failed point is retried at most --retries times. The run
 list is re-read from --exps_file at every pass, so runs can be added without a restart.
 
+Runs of the controlled SL vs UL comparison (slul_er700.sh, groups in SLUL_GROUPS) are read from
+runs/cam/slul_er700/<exp>/ and evaluated with slul_er700.sh on the test split only:
+  test   runs/cam/slul_er700_test/<exp>/epKKK/
+Each run is evaluated up to its own epoch count (the E in _e<E>_s<seed>), capped by --last if given.
+
 From the repository root, with CAM_ER700_DIR set (e.g. source /home/shengyuf/yunyi/envs/cam_env.sh):
   nohup python3 cam/scripts/mis/eval_queue_er700.py --gpu 5 --exps_file runs/cam/eval_queue_er700.exps \\
       >> runs/cam/eval_queue_er700.log 2>&1 &
@@ -54,6 +59,13 @@ GROUP_FLAGS['CAM_tau0.1_nosign'] = ['--method', 'CAMPrior', '--prior_policy', 'o
                                     '--tau0', '0.1', '--prior_tau0', '1']   # unused (prior off), matches the sidecar
 for _c in ('2', '5', '10', '25', '50'):
     GROUP_FLAGS[f'CAMPrior_p1_clips{_c}'] = ['--method', 'CAMPrior', '--prior_tau0', '1']
+# Controlled SL vs UL runs (slul_er700.sh): group -> (METHOD, extra flags as in training).
+SLUL_GROUPS = {
+    'DIFUSCO': ('DIFUSCO', []),
+    'DiffUCO_bern': ('DiffUCO', ['--noise_energy', 'bernoulli']),
+    'DiffUCO_ann': ('DiffUCO', ['--noise_energy', 'annealing']),
+}
+SLUL_OUT = 'runs/cam/slul_er700_test'
 SPLITS = {  # name: (test dir, num_t, output dir)
     'test': ('er_test', 50, 'runs/cam/mis_er700_test10'),
     'large': ('er_large_test', 200, 'runs/cam/mis_er700_large'),
@@ -68,15 +80,30 @@ def group_of(exp):
     return re.sub(r'_e\d+_s\d+$', '', exp)
 
 
+def epochs_of(exp):
+    m = re.search(r'_e(\d+)_s\d+$', exp)
+    return int(m.group(1)) if m else 100
+
+
 def read_exps(path):
     with open(path) as f:
         return [w for line in f for w in line.split('#')[0].split()]
 
 
 def points(exps, splits, every, last):
-    for k in range(0, last + 1, every):
+    top = max([epochs_of(x) for x in exps], default=0) if last is None else last
+    for k in range(0, top + 1, every):
         for split in splits:
             for x in exps:
+                if k > (epochs_of(x) if last is None else min(last, epochs_of(x))):
+                    continue
+                if group_of(x) in SLUL_GROUPS:
+                    if split != 'test':
+                        continue
+                    ck = (f'runs/cam/slul_er700/{x}/epoch_init.pt' if k == 0
+                          else f'runs/cam/slul_er700/{x}/epoch_{k - 1:04d}.pt')
+                    yield (x, split, k, ck, f'{SLUL_OUT}/{x}/ep{k:03d}/test_log.txt')
+                    continue
                 out = SPLITS[split][2]
                 if k == 0:
                     ck = f'runs/cam/mis_er700_init2/{x}/epoch_init.pt'
@@ -100,7 +127,7 @@ def running_evals():
             continue
         if '--log_file' in args:
             lf = args[args.index('--log_file') + 1] if args.index('--log_file') + 1 < len(args) else ''
-            m = re.search(r'runs/cam/mis_er700_(test10|large)/.*/test_log\.txt$', lf)
+            m = re.search(r'runs/cam/(mis_er700_test10|mis_er700_large|slul_er700_test)/.*/test_log\.txt$', lf)
             if m:
                 found.add(m.group(0))
     return found
@@ -108,6 +135,14 @@ def running_evals():
 
 def command(a, x, split, ck, logp, repo):
     testdir, num_t, _ = SPLITS[split]
+    if group_of(x) in SLUL_GROUPS:
+        method, flags = SLUL_GROUPS[group_of(x)]
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(a.gpu), PYTORCH_CUDA_ALLOC_CONF='expandable_segments:True',
+                   MODE='test', PROJECT='slul_er700_eval', EXP=x, METHOD=method)
+        argv = (['bash', 'cam/scripts/mis/slul_er700.sh'] + flags
+                + ['--checkpoint', f'{repo}/{ck}', '--test_path', f'{a.data}/{testdir}', '--num_t', str(num_t),
+                   '--num_k', '20', '--log_file', f'{repo}/{logp}'])
+        return env, argv
     env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(a.gpu), PYTORCH_CUDA_ALLOC_CONF='expandable_segments:True',
                MODE='test', PROJECT='mis_er700_eval', EXP=x)
     argv = (['bash', 'cam/scripts/mis/mis_er700_cam.sh'] + GROUP_FLAGS[group_of(x)]
@@ -122,7 +157,7 @@ def main():
     ap.add_argument('--exps_file', required=True, help='run names, whitespace or one per line, # comments')
     ap.add_argument('--splits', nargs='+', default=['test', 'large'], choices=list(SPLITS))
     ap.add_argument('--every', type=int, default=10)
-    ap.add_argument('--last', type=int, default=100)
+    ap.add_argument('--last', type=int, default=None, help='last epoch (default: each run\'s own E)')
     ap.add_argument('--max_jobs', type=int, default=6)
     ap.add_argument('--max_large', type=int, default=4)
     ap.add_argument('--retries', type=int, default=2)
@@ -141,7 +176,7 @@ def main():
     running = {}            # log path -> (Popen, x, split, k, start time)
     fails = {}              # log path -> number of failed attempts
     last_status, last_line = 0.0, None
-    log(f'queue on GPU {a.gpu}: splits {a.splits}, epochs 0..{a.last} every {a.every}, '
+    log(f'queue on GPU {a.gpu}: splits {a.splits}, epochs 0..{a.last or "E"} every {a.every}, '
         f'max {a.max_jobs} jobs ({a.max_large} large), runs from {a.exps_file}')
     while True:
         for lp, (p, x, split, k, t0) in list(running.items()):
@@ -158,7 +193,7 @@ def main():
                 log(f'FAILED {x} {split} ep{k} (exit {rc}, attempt {fails[lp]}), see {lp}.out')
 
         exps = read_exps(a.exps_file)
-        unknown = [x for x in exps if group_of(x) not in GROUP_FLAGS]
+        unknown = [x for x in exps if group_of(x) not in GROUP_FLAGS and group_of(x) not in SLUL_GROUPS]
         if unknown:
             log(f'skipping runs of unknown groups {unknown}: add their flags to GROUP_FLAGS')
             exps = [x for x in exps if x not in unknown]

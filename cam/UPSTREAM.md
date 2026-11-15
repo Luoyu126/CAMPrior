@@ -167,6 +167,10 @@ shows only the items below).
     graphs). Not set, nothing changes. The cache is not invalidated when label files change: delete
     it then. `scripts/mis/build_graph_cache.py` fills it in parallel; `scripts/mis/slul_er700.sh`
     sets it to `$CAM_CACHE/graphs` by default.
+36. `scripts/mis/eval_queue_er700.py` also takes the runs of the SL vs UL comparison
+    (`slul_er700.sh`, groups `DIFUSCO`, `DiffUCO_bern`, `DiffUCO_ann`): checkpoints from
+    `runs/cam/slul_er700/<exp>/`, test split only, results in `runs/cam/slul_er700_test/<exp>/epKKK/`.
+    `--last` now defaults to each run's own epoch count (the E in `_e<E>_s<seed>`).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
