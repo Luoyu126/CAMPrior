@@ -22,7 +22,8 @@ shows only the items below).
    seconds, same values that upstream averages). Averages, validation and training are unchanged.
 4. Added `scripts/env.sh`: paths to the existing conda env `~/anaconda3/envs/CAM` (used
    read-only), data/run dirs, and every cache/config/temp dir pointed under
-   `/usr0/home/shengyuf/yunyi/.cache/cam`, wandb disabled, no bytecode files.
+   `/usr0/home/shengyuf/yunyi/.cache/cam`, wandb disabled unless `CAM_WANDB=1` (then online to entity
+   `yunyi-organization`, key read from a private file outside the repo), no bytecode files.
 5. Added `scripts/mis/mis_er200_cam.sh`: `scripts/mis/mis_er_cam.sh` with the same
    hyperparameters, run as one process (no SLURM) on our ER-[200-300] data in `data/cam/` and
    saving to `runs/cam/<PROJECT>/<EXP>`.

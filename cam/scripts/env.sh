@@ -27,7 +27,22 @@ export PYG_HOME="$_CAM_CACHE/pyg"
 export CUDA_CACHE_PATH="$_CAM_CACHE/nv"
 export MPLCONFIGDIR="$_CAM_CACHE/mpl"
 export TMPDIR="$_CAM_CACHE/tmp"
-export WANDB_MODE=disabled
+# wandb stays off unless CAM_WANDB=1. Then runs log online to the entity below; the API key is
+# read from a private file outside the repo (never commit or print it). Project = --wandb_name.
+if [ "${CAM_WANDB:-0}" = 1 ]; then
+    _CAM_WANDB_KEY_FILE="${CAM_WANDB_KEY_FILE:-/usr0/home/shengyuf/yunyi/.ssh/wandb_api_key}"
+    if [ -r "$_CAM_WANDB_KEY_FILE" ]; then
+        export WANDB_MODE=online
+        export WANDB_API_KEY="$(cat "$_CAM_WANDB_KEY_FILE")"
+        export WANDB_ENTITY="${WANDB_ENTITY:-yunyi-organization}"
+        export WANDB_SILENT=true
+    else
+        echo "warning: CAM_WANDB=1 but $_CAM_WANDB_KEY_FILE is missing; wandb disabled" >&2
+        export WANDB_MODE=disabled
+    fi
+else
+    export WANDB_MODE=disabled
+fi
 export WANDB_DIR="$_CAM_CACHE/wandb"
 export WANDB_CONFIG_DIR="$_CAM_CACHE/wandb"
 export WANDB_CACHE_DIR="$_CAM_CACHE/wandb"
