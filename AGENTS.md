@@ -6,6 +6,7 @@ Guidelines for any AI coding agent working in this repository.
 
 - Remote: `origin` → https://github.com/Luoyu126/CAMPrior.git
 - Default branch on the remote: `main`
+- Development branch: `develop`. Work and push there; `main` only receives changes through pull requests, split by feature (one PR per functional module, merged with a merge commit).
 
 ## Git workflow
 
