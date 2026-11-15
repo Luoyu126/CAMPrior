@@ -150,6 +150,23 @@ shows only the items below).
     current policy, docs/label_correction.md 7.5), computed in-process in chunks of `--simpol_chunk`
     columns; `--label_states s` labels only a fraction s of the stored states (any label mode).
     `tests/test_cam_prior.py` test 8. `scripts/mis/simpol_er700.sh` launches the three-arm continuation.
+34. `models/enprocessde.py`: `EncodeProcessDecode` honours `--use_activation_checkpoint` (the solvers
+    already passed it; upstream ignored it there) and then recomputes each message-passing layer in
+    the backward pass. Same gradients (bit-identical on CPU; on GPU it differs only by the
+    nondeterminism of the sparse matmul, which repeated runs without it show too). Needed for
+    DiffUCO's full-trajectory loss with 20 trajectories of 50 steps on ER-[700-800] on 11 GB cards.
+    `scripts/mis/slul_er700.sh` launches the controlled SL (DIFUSCO) vs UL (DiffUCO) comparison
+    with the small GNN (CAM paper appendix B.2; docs/20261116/handoff.md).
+    `solvers/meta_solver.py`: `--save_every_epoch` now also works for the supervised solvers
+    (`SLSolver`: `epoch_init.pt` and `epoch_XXXX.pt`), for the same per-epoch test curves.
+35. `datasets/mis.py`: with `CAM_GRAPH_CACHE=<dir>` the parsed gpickle graphs (edge_index as int16,
+    num_nodes, the KaMIS label if any) are cached as `.pt` files, keyed by the data directory path
+    and file name. Parsing a dense ER-[700-800] gpickle with networkx takes 1-3 s, so supervised
+    training (every training graph each epoch) was data-bound; a cached graph loads in about 2 ms.
+    The cached `Data` is field-by-field identical to the uncached one (checked on train and valid
+    graphs). Not set, nothing changes. The cache is not invalidated when label files change: delete
+    it then. `scripts/mis/build_graph_cache.py` fills it in parallel; `scripts/mis/slul_er700.sh`
+    sets it to `$CAM_CACHE/graphs` by default.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
