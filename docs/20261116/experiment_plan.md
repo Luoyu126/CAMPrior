@@ -191,3 +191,31 @@
   - 5 月出表期间，sa 上只跑过 CAM、DiffUCO、SDDS，一次 DIFUSCO 都没有。
   - sa 上的 DIFUSCO 只有 09-30 以后的 3 次 RB-small 50 epoch 消融，验证最好 17.9–18.9，都不是出表的配置。
   - 线索：Shengyu 11-07 的 `scripts/run_orig_sweep.sh` 里有 MIS RB-small 上 DIFUSCO × 3 个种子，用的是原 DIFUSCO 设置（总 batch 40、200 epoch、patience 20），日志写到 `logs/orig_sweep/`，但 sa 上没有这个目录。那几个提交是在 sf 集群（sf.lti.cs.cmu.edu）上做的，sweep 很可能也在 sf 上跑。表 1 的 DIFUSCO 要问 Shengyu 在哪台机器、用的什么配置。DiffUCO 出表的 RB-small run 在：annealing，05-13 21:46 开始，验证最好 20.27（第 137 个 epoch），test 19.87、19.88。完整配置见 `cam_paper_diffuco_runs.md` §3.1。
+
+### 6.3 DIFUSCO 在 RB-small 上自己调；Shengyu 的启动脚本；表 1 的 DIFUSCO 可能用了错位的标签（11-15）
+
+**用户决定**：RB-small 上的 DIFUSCO 由我们自己调参。
+
+**Shengyu 目录里的三份 RB-small DIFUSCO 启动脚本**（`/home/shengyuf/CAM4CO/scripts/`，只读）：
+
+| 脚本 | 时间 | 每卡 batch × 卡数 | 学习率 / weight decay | epoch / patience | 其他 |
+|---|---|---|---|---|---|
+| `mis/mis_rb_small_difusco.sh` | 08-28 | 5 × 10 = 50 | 2e-4 / 1e-4 | 200 / 20 | `num_tp` 1000，推理 cosine，50 步 × 20 次，验证 64 张 |
+| `train_orig.sh`（由 `run_orig_sweep.sh` 调用，3 个种子） | 11-07 | 40 ÷ 卡数，总 batch 固定 40（注释：“原始 run 是 8 卡 × 5”） | 2e-4 / 1e-4 | 200 / 20 | 同上；种子可设 |
+| `mis/rb_small_time_ablation.py` 等 | 09-30 起 | 5 × 10 | 2e-4 | 50 / 51 | 网络加时间输入的消融 |
+
+三份的核心设置相同：学习率 2e-4，weight decay 1e-4，最多 200 个 epoch，验证 20 个 epoch 不涨就停，训练 1000 步扩散，推理用 cosine 时间表 50 步 × 20 次。没有一份能对上表 1 那次 run。
+
+**RB 标签错位的影响**（11-15 实测，`/usr1/shengyuf/MIS/RB_small_train` 随机抽 100 张）：
+- 100 张图的节点插入顺序都和编号顺序不同。
+- 用修复前的加载代码，96 张图的标签加载后不是独立集；修复后 0 张。标签平均大小 20.22。
+- RiemannCO 里 `datasets/mis.py` 的修复在 11-07（提交 `f02c92f`），之前一直是错的。
+
+**推论**：
+- 11-07 之前在 RB 上训练的 SL 模型，基本都是用错位的标签训的。包括 Shengyu 09-30 的 DIFUSCO 消融（验证最好 17.9–18.9）。
+- 如果表 1 的 DIFUSCO 也用的这套代码（附录 B.1 说所有扩散基线“在统一设置下重新实现和训练”），那 RB-small 上的 18.74 很可能也是错位标签训出来的。那样表 1 里 RB 上“UL 远好于 SL”的差距，有一部分可能来自这个 bug，而不是方法本身。
+- ER 不受影响：ER 图的两种顺序一致，`slul_results.md` 里 ER 上的结论不受影响。
+- UL 方法（DiffUCO、CAM、SDDS）不用标签，不受影响。
+- 要找 Shengyu 确认：表 1 的 DIFUSCO 是哪天、用哪份代码训的。
+
+**我们调参的起点**：以上面三份脚本的共同设置为中心，学习率 2e-4、weight decay 1e-4、200 epoch、patience 20、总 batch 40–50、cosine 推理。用修好的代码（`cam/UPSTREAM.md` 第 39、40 条）。具体网格待定。
