@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from pathlib import Path
 from solvers import *
+from solvers.cam_prior import CAMPrior, add_cam_prior_args  # local addition (see UPSTREAM.md)
 
 def set_seed(seed):
     random.seed(seed)
@@ -72,6 +73,8 @@ def main():
     parser.add_argument("--lr", type=float, default=0.0001)
     parser.add_argument("--weight_decay", type=float, default=0.0001)
     parser.add_argument("--patience", type=int, default=20)
+    parser.add_argument("--save_every_epoch", action="store_true",
+                        help="local addition (see UPSTREAM.md): also save epoch_XXXX.pt every epoch")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument('--use_activation_checkpoint', action='store_true', help='use activation checkpoint')
     parser.add_argument('--compile', action='store_true', help='torch.compile the model')
@@ -90,15 +93,19 @@ def main():
     parser.add_argument("--inner_loop_steps", type=int, default=1, help='inner loop steps')
     parser.add_argument("--batches_per_step", type=int, default=None, help='max batches from batch_loader per inner loop step; None means all batches')
 
+    add_cam_prior_args(parser)  # local addition (see UPSTREAM.md): --prior_* flags of CAMPrior
     args = parser.parse_args()
     if args.do_train and int(os.environ.get("LOCAL_RANK", 0)) == 0 and os.path.isdir(args.save_dir):
         ckpts = list(Path(args.save_dir).glob('*.pt'))
         if ckpts:
             print(f"Warning: checkpoint(s) found in {args.save_dir}: {[c.name for c in ckpts]}")
-            confirm = input("Training will overwrite existing checkpoints. For testing, please remove the --do_train flag. Continue? [y/N] ").strip().lower()
-            if confirm != 'y':
-                print("Aborted.")
-                return
+            # Local patch (see UPSTREAM.md): fail fast instead of an interactive input() prompt,
+            # so unattended runs never hang; set CAM_ALLOW_OVERWRITE=1 to overwrite on purpose.
+            if os.environ.get("CAM_ALLOW_OVERWRITE") != "1":
+                raise SystemExit(f"Refusing to overwrite checkpoint(s) in {args.save_dir}. "
+                                 "Use a new --save_dir, remove --do_train for testing, "
+                                 "or set CAM_ALLOW_OVERWRITE=1.")
+            print("CAM_ALLOW_OVERWRITE=1: existing checkpoints will be overwritten.")
     if not args.do_train:
         args.wandb_run_name = 'test_' + args.wandb_run_name 
     # fix seeds
@@ -107,6 +114,8 @@ def main():
         solver = RLNN(args)
     elif args.method == 'CAM':
         solver = CAM(args)
+    elif args.method == 'CAMPrior':
+        solver = CAMPrior(args)
     elif args.method == 'RLSA':
         solver = RLSA(args)
     elif args.method == 'FM':

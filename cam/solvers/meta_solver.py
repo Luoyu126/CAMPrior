@@ -104,7 +104,12 @@ class MetaSolver(object):
         all_time = []   
         all_eval_set_size = []
         
+        all_idx = []  # local patch (see UPSTREAM.md): dataset index of each evaluated graph
+
         for _, batch in tqdm(enumerate(dataloader), total=len(dataloader), disable=not self.accelerator.is_local_main_process):
+            batch_idx = getattr(batch, 'idx', None)
+            all_idx.append(torch.as_tensor(batch_idx, device=self.accelerator.device).reshape(-1)[0].long()
+                           if batch_idx is not None else torch.tensor(-1, device=self.accelerator.device))
             st_time = time.time()
             eval_set_size = self.evaluate_single(batch)
             end_time = time.time()
@@ -112,6 +117,7 @@ class MetaSolver(object):
             all_eval_set_size.append(eval_set_size)
 
         self.accelerator.wait_for_everyone()
+        all_idx = self.accelerator.gather(torch.stack(all_idx))
 
         all_time = torch.stack(all_time)
 
@@ -129,6 +135,14 @@ class MetaSolver(object):
                 with open(log_path, 'w') as f:
                     f.write('Avg. obj: %f\n'%obj_result)
                     f.write('Avg. time: %f\n'%time_result)
+                # Local patch (see UPSTREAM.md): per-graph objective and time, so that gaps to
+                # per-graph reference sizes can be computed offline. Only written at test time.
+                files = getattr(getattr(dataloader, 'dataset', None), 'files', None) or []
+                with open(log_path + '.per_graph.csv', 'w') as f:
+                    f.write('idx,file,obj,time\n')
+                    for i, o, t in zip(all_idx.tolist(), all_eval_set_size.float().tolist(), all_time.tolist()):
+                        name = os.path.basename(files[i]) if 0 <= i < len(files) else ''
+                        f.write(f'{i},{name},{o},{t}\n')
         return obj_result, time_result
 
 # Neural Solver
@@ -288,6 +302,10 @@ class ULSolver(NNSolver):
         best_eval = np.inf
         wait = 0
         self.accelerator.wait_for_everyone()
+        # Local patch (see UPSTREAM.md): with --save_every_epoch also keep the untrained weights.
+        if getattr(getattr(self, 'args', None), 'save_every_epoch', False):
+            self.tau = self.temp_scheduler(0)
+            self.save_ckpt(os.path.join(save_dir, 'epoch_init.pt'))
 
         for epoch in range(self.epochs):
             sample_loader = iter(cycle(self.train_loader))
@@ -346,6 +364,10 @@ class ULSolver(NNSolver):
                 wait = 0
             else:
                 wait += 1
+            # Local patch (see UPSTREAM.md): optionally keep every epoch's weights, so that
+            # training curves can be re-evaluated offline with any protocol.
+            if getattr(getattr(self, 'args', None), 'save_every_epoch', False):
+                self.save_ckpt(os.path.join(save_dir, f'epoch_{epoch:04d}.pt'))
                 
             if wait == self.patience:
                 self.accelerator.print('Early stop')
