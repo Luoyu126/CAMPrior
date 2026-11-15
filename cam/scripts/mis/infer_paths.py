@@ -9,6 +9,12 @@ uniforms per step (common random numbers), so differences come from the flip pro
               sampler CAMPrior starts from (test 38.56 on ER-[700-800])
     CAM       a CAM checkpoint (network logits only)
     CAMPrior  a CAMPrior checkpoint (prior + network residual, ratio from its .prior.json)
+optionally, for the controlled SL vs UL comparison (slul_er700.sh):
+    DiffUCO   (--diffuco) a DiffUCO checkpoint: same flip-probability sampler as CAM
+    DIFUSCO   (--difusco) a DIFUSCO checkpoint (x0-prediction, 2 output channels, T=1000 linear training
+              schedule, cosine inference schedule): each step samples the D3PM posterior
+              p(x_{t2} | x_{t1}, x0_pred) with the shared uniforms U[t] instead of torch.bernoulli; its
+              kl_prior is the KL of the implied flip probability to the RLSA flip probability
 
 Recorded per step t = 0 .. num_t-1 (state X_t before the step's flips) and chain, then averaged over
 chains and graphs:
@@ -40,7 +46,7 @@ import torch
 
 CAM_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 REPO = os.path.abspath(os.path.join(CAM_DIR, '..'))
-METHODS = ('RLSA', 'CAM', 'CAMPrior')
+METHODS = ('RLSA', 'CAM', 'CAMPrior')      # always run; DiffUCO / DIFUSCO are added when given
 STEP_KEYS = ('size', 'conflicts', 'decoded_mean', 'decoded_best', 'adds', 'removes', 'to_final', 'frozen',
              'diversity', 'kl_prior')
 
@@ -71,9 +77,52 @@ def bernoulli_kl(p, q, eps=1e-6):
     return p*torch.log(p/q) + (1 - p)*torch.log((1 - p)/(1 - q))
 
 
+class DifuscoSampler:
+    """The DIFUSCO inference step of solvers/difusco.py (categorical_posterior) with an own 2-channel model."""
+    def __init__(self, ck, dev, num_t, num_tp=1000):
+        import models
+        from utils.diffusion_schedulers import CategoricalDiffusion, DiffusionInferenceSchedule
+        self.model = models.EncodeProcessDecode(n_layers=8, hidden_dim=64, out_channels=2,
+                                                use_activation_checkpoint=False, problem='mis', time_scale=1).to(dev)
+        self.model.load_state_dict(torch.load(ck, map_location=dev))
+        self.model.eval()
+        self.diffusion = CategoricalDiffusion(T=num_tp, schedule='linear')
+        self.schedule = DiffusionInferenceSchedule(inference_schedule='cosine', T=num_tp, inference_T=num_t)
+
+    def prob_one(self, graph, x, t):
+        """(t1, t2) of inference step t and P(x_{t2} = 1 | x_{t1} = x, x0_pred) per node and chain"""
+        t1, t2 = self.schedule(t)
+        time = torch.ones_like(x)*t1
+        p0 = self.model(graph, x.unsqueeze(-1), time).softmax(-1)               # n x K x 2
+        Qb = self.diffusion.Q_bar
+        Qt = torch.from_numpy(np.linalg.inv(Qb[t2]) @ Qb[t1]).float().to(x.device)
+        Qs, Qg = (torch.from_numpy(Qb[i]).float().to(x.device) for i in (t1, t2))
+        xi = x.long()
+        # sum_c p0(c) Q_t[1, x] Qbar_t2[c, 1] / Qbar_t1[c, x], as categorical_posterior computes it
+        p = sum(p0[..., c]*Qt[1, xi]*Qg[c, 1]/Qs[c, xi] for c in (0, 1))
+        return t1, t2, p
+
+
+@torch.no_grad()
+def run_difusco(solver, ds, graph, x0, U):
+    """run_path for a DIFUSCO checkpoint (sampler ds)"""
+    T = solver.num_t
+    x = x0.clone()
+    states, kls = [], []
+    for t in range(T):
+        states.append(x.bool())
+        _, t2, p1 = ds.prob_one(graph, x, t)
+        pflip = torch.where(x > 0.5, 1 - p1, p1)
+        prior = solver.prior_logits(graph, x, int(t*solver.num_tp/T), 1.0)
+        kls.append(float(bernoulli_kl(pflip, torch.sigmoid(prior)).mean()))
+        x = (U[t] < p1).float() if t2 > 0 else p1.clamp(min=0)
+    obj, sol = solver.problem.evaluate(graph, x)
+    return torch.stack(states), sol.bool(), (-obj).float(), np.array(kls)
+
+
 @torch.no_grad()
 def run_path(solver, graph, mode, ratio, x0, U):
-    """One evaluate_single-style run of num_k chains. mode: RLSA / CAM / CAMPrior.
+    """One evaluate_single-style run of num_k chains. mode: RLSA / CAM / CAMPrior / DiffUCO (as CAM).
     Returns the binary states X_0..X_{T-1} (T x n x K bool), the decoded outputs (n x K), their sizes (K,)
     and the per-step KL to the prior (T,)."""
     T = solver.num_t
@@ -88,7 +137,7 @@ def run_path(solver, graph, mode, ratio, x0, U):
             logits = prior
         else:
             residual = solver.model(graph, x.unsqueeze(-1), time).squeeze(-1)
-            logits = residual if mode == 'CAM' else solver.total_logits(graph, prior, residual)
+            logits = residual if mode in ('CAM', 'DiffUCO') else solver.total_logits(graph, prior, residual)
         p = torch.sigmoid(logits)
         kls.append(float(bernoulli_kl(p, torch.sigmoid(prior)).mean()))
         if t == T - 1:
@@ -136,12 +185,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--cam', required=True, help='CAM checkpoint')
     ap.add_argument('--camprior', required=True, help='CAMPrior checkpoint (with its .prior.json)')
+    ap.add_argument('--diffuco', help='DiffUCO checkpoint (optional)')
+    ap.add_argument('--difusco', help='DIFUSCO checkpoint (optional)')
     ap.add_argument('--graphs', type=int, default=16, help='first G graphs of the test set')
     ap.add_argument('--keep', type=int, default=2, help='save the full paths of the first graphs')
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--out', default=os.path.join(REPO, 'runs', 'diag', 'infer_paths'))
     a = ap.parse_args()
     cam_ck, cp_ck, out = (os.path.abspath(p) for p in (a.cam, a.camprior, a.out))
+    a.diffuco, a.difusco = (p and os.path.abspath(p) for p in (a.diffuco, a.difusco))
     meta = json.load(open(cp_ck + '.prior.json'))
     sys.path.insert(0, CAM_DIR)
     os.chdir(CAM_DIR)
@@ -161,10 +213,20 @@ def main():
     dev = solver.accelerator.device
     solver.model.to(dev)
     weights = {'CAM': torch.load(cam_ck, map_location=dev), 'CAMPrior': torch.load(cp_ck, map_location=dev)}
-    ratios = {'RLSA': 1.0, 'CAM': 1.0, 'CAMPrior': float(meta['tau_ratio'])}
+    ratios = {'RLSA': 1.0, 'CAM': 1.0, 'CAMPrior': float(meta['tau_ratio']), 'DiffUCO': 1.0}
     print(f'CAM {cam_ck}\nCAMPrior {cp_ck} (prior ratio {ratios["CAMPrior"]})', flush=True)
+    methods = list(METHODS)
+    if a.diffuco:
+        weights['DiffUCO'] = torch.load(a.diffuco, map_location=dev)
+        methods.append('DiffUCO')
+        print(f'DiffUCO {a.diffuco}', flush=True)
+    ds = None
+    if a.difusco:
+        ds = DifuscoSampler(a.difusco, dev, solver.num_t)
+        methods.append('DIFUSCO')
+        print(f'DIFUSCO {a.difusco}', flush=True)
     T, K = solver.num_t, solver.num_k
-    acc = {m: {k: [] for k in STEP_KEYS} for m in METHODS}
+    acc = {m: {k: [] for k in STEP_KEYS} for m in methods}
     per_graph = []
     os.makedirs(out, exist_ok=True)
     for gi, graph in enumerate(solver.valid_loader):
@@ -179,11 +241,14 @@ def main():
         U = torch.rand(T, n, K, generator=g, device=dev)
         rec, keep = {'graph': gi, 'n': n}, {}
         best = {}
-        for m in METHODS:
-            if m in weights:
-                solver.model.load_state_dict(weights[m])
-            solver.model.eval()
-            S, D, sizes, kls = run_path(solver, graph, m, ratios[m], x0, U)
+        for m in methods:
+            if m == 'DIFUSCO':
+                S, D, sizes, kls = run_difusco(solver, ds, graph, x0, U)
+            else:
+                if m in weights:
+                    solver.model.load_state_dict(weights[m])
+                solver.model.eval()
+                S, D, sizes, kls = run_path(solver, graph, m, ratios[m], x0, U)
             st = path_stats(solver, graph, S, D, kls)
             for k in STEP_KEYS:
                 acc[m][k].append(st[k])
@@ -194,30 +259,31 @@ def main():
             if gi < a.keep:
                 keep[f'{m}_states'] = S.cpu().numpy()
                 keep[f'{m}_out'] = D.cpu().numpy()
-        for i, m1 in enumerate(METHODS):
-            for m2 in METHODS[i + 1:]:
+        for i, m1 in enumerate(methods):
+            for m2 in methods[i + 1:]:
                 rec[f'jaccard_{m1}_{m2}'] = jaccard(best[m1], best[m2])
         per_graph.append(rec)
         if keep:
             np.savez_compressed(os.path.join(out, f'paths_g{gi}.npz'), edge_index=graph.edge_index.cpu().numpy(),
                                 **keep)
         print(f'graph {gi} (n={n}): ' + ', '.join(f'{m} best {rec[m]["best"]:.0f} mean {rec[m]["mean"]:.2f} '
-                                                  f'distinct {rec[m]["distinct"]}' for m in METHODS), flush=True)
-    res = {'cam': cam_ck, 'camprior': cp_ck, 'ratios': ratios, 'graphs': len(per_graph), 'num_t': T, 'num_k': K,
+                                                  f'distinct {rec[m]["distinct"]}' for m in methods), flush=True)
+    res = {'cam': cam_ck, 'camprior': cp_ck, 'diffuco': a.diffuco, 'difusco': a.difusco, 'methods': methods,
+           'ratios': ratios, 'graphs': len(per_graph), 'num_t': T, 'num_k': K,
            'per_graph': per_graph,
-           'steps': {m: {k: np.mean(acc[m][k], 0).tolist() for k in STEP_KEYS} for m in METHODS}}
+           'steps': {m: {k: np.mean(acc[m][k], 0).tolist() for k in STEP_KEYS} for m in methods}}
     json.dump(res, open(os.path.join(out, 'summary.json'), 'w'), indent=1)
     print('\nmean over graphs:')
-    for m in METHODS:
+    for m in methods:
         print(f'  {m:8s} best {np.mean([r[m]["best"] for r in per_graph]):.2f}  '
               f'mean {np.mean([r[m]["mean"] for r in per_graph]):.2f}  '
               f'distinct {np.mean([r[m]["distinct"] for r in per_graph]):.1f}')
     for k in [k for k in per_graph[0] if k.startswith('jaccard')]:
         print(f'  {k}: {np.mean([r[k] for r in per_graph]):.3f}')
-    print('\n   t | ' + ' | '.join(f'{m}: dec  size confl add rem to_fin frozen div KL' for m in METHODS))
+    print('\n   t | ' + ' | '.join(f'{m}: dec  size confl add rem to_fin frozen div KL' for m in methods))
     for t in (0, 1, 2, 5, 10, 20, 30, 40, 45, 49):
         cells = []
-        for m in METHODS:
+        for m in methods:
             s = res['steps'][m]
             cells.append(f'{s["decoded_mean"][t]:5.1f} {s["size"][t]:5.1f} {s["conflicts"][t]:6.1f} '
                          f'{s["adds"][t]:4.1f} {s["removes"][t]:4.1f} {s["to_final"][t]:.3f} {s["frozen"][t]:.2f} '
