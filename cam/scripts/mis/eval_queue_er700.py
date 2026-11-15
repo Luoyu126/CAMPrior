@@ -65,6 +65,9 @@ SLUL_GROUPS = {
     'DiffUCO_bern': ('DiffUCO', ['--noise_energy', 'bernoulli']),
     'DiffUCO_ann': ('DiffUCO', ['--noise_energy', 'annealing']),
 }
+# SL learning-rate check: the learning rate only matters in training, so these test like DIFUSCO.
+for _lr in ('2e-4', '1e-3'):
+    SLUL_GROUPS[f'DIFUSCO_lr{_lr}'] = ('DIFUSCO', [])
 SLUL_OUT = 'runs/cam/slul_er700_test'
 SPLITS = {  # name: (test dir, num_t, output dir)
     'test': ('er_test', 50, 'runs/cam/mis_er700_test10'),

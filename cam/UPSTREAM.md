@@ -171,6 +171,7 @@ shows only the items below).
     (`slul_er700.sh`, groups `DIFUSCO`, `DiffUCO_bern`, `DiffUCO_ann`): checkpoints from
     `runs/cam/slul_er700/<exp>/`, test split only, results in `runs/cam/slul_er700_test/<exp>/epKKK/`.
     `--last` now defaults to each run's own epoch count (the E in `_e<E>_s<seed>`).
+    Groups `DIFUSCO_lr2e-4` and `DIFUSCO_lr1e-3` (the SL learning-rate check) test like `DIFUSCO`.
 37. `scripts/mis/infer_paths.py` takes optional `--diffuco` and `--difusco` checkpoints of the SL vs UL
     runs. DiffUCO uses the same flip-probability sampler as CAM. DIFUSCO reimplements the step of
     `solvers/difusco.py` (`categorical_posterior`, T=1000 linear, cosine inference) with the shared
