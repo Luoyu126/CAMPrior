@@ -19,11 +19,14 @@
   - 状态：开跑时间、进程号、GPU、完成时间；
   - 结果：验证集和 test 的数字，以及 wandb 链接；
   - 结论。
-- 小的结果文件（汇总表 CSV、画图脚本）可以放进来；**checkpoint、完整日志不进 git**。
+- `wandb/`：这次实验所有 run 的 wandb 本地记录，由 `launch.sh` 里的 `WANDB_DIR` 指到这里，每个 run 一个 `run-<日期>_<时间>-<id>/`。
+  - 进 git 的只有每个 run 的 `files/config.yaml`（全部超参）和 `files/wandb-summary.json`（最后的指标）。
+  - 二进制记录 `*.wandb`、`output.log`、debug 日志、`wandb-metadata.json`（含用户名和主机名）留在本地，不进 git（规则在仓库根目录的 `.gitignore`）。
+- 小的结果文件（汇总表 CSV、画图脚本）可以放进来；**checkpoint、完整训练日志不进 git**。
 
 ## 输出放在哪
 
-- checkpoint、训练日志写到 `runs/experiments/<子文件夹名>/`（`runs/` 已在 `.gitignore` 里）。
+- checkpoint、训练日志写到 `runs/experiments/<子文件夹名>/`（`runs/` 已在 `.gitignore` 里）；wandb 记录写到本子文件夹的 `wandb/`。
 - wandb：entity `yunyi-organization`，project `SLVUL`。启动前 `export CAM_WANDB=1` 再 source `cam/scripts/env.sh`，key 从仓库外的私有文件读（`/usr0/home/shengyuf/yunyi/.ssh/wandb_api_key`），不要写进脚本或提交。
 
 ## 规矩

@@ -11,6 +11,7 @@ SEED=${2:-0}
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 export CAM_WANDB=1
 source "$REPO/cam/scripts/env.sh"
+export WANDB_DIR="$EXP_DIR"   # wandb records go to experiments/<name>/wandb/
 export CUDA_VISIBLE_DEVICES=$GPU
 cam_require_gpu
 

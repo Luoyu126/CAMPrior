@@ -7,3 +7,10 @@ __pycache__/
 *.pt
 .pytest_cache/
 docs/20261116/papers/
+
+# wandb records inside experiments/<name>/wandb/: keep only each run's config and final metrics
+experiments/*/wandb/**
+!experiments/*/wandb/*/
+!experiments/*/wandb/*/files/
+!experiments/*/wandb/*/files/config.yaml
+!experiments/*/wandb/*/files/wandb-summary.json
