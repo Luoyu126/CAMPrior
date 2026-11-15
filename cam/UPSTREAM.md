@@ -175,6 +175,11 @@ shows only the items below).
     runs. DiffUCO uses the same flip-probability sampler as CAM. DIFUSCO reimplements the step of
     `solvers/difusco.py` (`categorical_posterior`, T=1000 linear, cosine inference) with the shared
     uniforms instead of `torch.bernoulli`; its posterior matches the original to 2e-7.
+38. `utils/diffusion_schedulers.py`, `solvers/difusco.py`, `main.py`: `--inference_t_start S` makes the
+    DIFUSCO inference steps run from noise level S down to 0 instead of from `num_tp` (default: unset,
+    identical schedule). With T=1000 linear training noise and the cosine inference schedule, the first
+    ~15 of 50 steps keep less than 5% of the signal; this flag tests whether those steps are wasted.
+    The initial state stays uniform, slightly off the forward marginal for small S.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

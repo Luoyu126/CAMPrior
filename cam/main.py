@@ -43,6 +43,8 @@ def main():
     parser.add_argument("--lambd", type=float, default=0.0, help='regularization coefficient')
     parser.add_argument("--beta", type=float, default=1.02, help='penalty coefficient')
     parser.add_argument('--inference_schedule', type=str, default='linear', choices=['cosine', 'linear'])
+    # local addition (see UPSTREAM.md): DIFUSCO inference starts at noise level t_start (default num_tp)
+    parser.add_argument('--inference_t_start', type=int, default=None)
     parser.add_argument('--skip_decode', action='store_true', help='whether skip decoding')
     
     # TSP args

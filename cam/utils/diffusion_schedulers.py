@@ -73,28 +73,33 @@ class FMInferenceSchedule(object):
             raise ValueError(f"Unsupported scheduler: {self.scheduler}")
 
 class DiffusionInferenceSchedule(object):
-    def __init__(self, inference_schedule="linear", T=1000, inference_T=1000):
+    # Local patch (see UPSTREAM.md): t_start < T starts the inference steps at noise level t_start
+    # instead of T (default None = T, unchanged).
+    def __init__(self, inference_schedule="linear", T=1000, inference_T=1000, t_start=None):
         self.inference_schedule = inference_schedule
         self.T = T
         self.inference_T = inference_T
+        self.S = T if t_start is None else int(t_start)
+        assert 1 <= self.S <= T
     
     def __call__(self, i):
         assert 0 <= i < self.inference_T
+        S = self.S
     
         if self.inference_schedule == "linear":
-            t1 = self.T - int((float(i) / self.inference_T) * self.T)
+            t1 = S - int((float(i) / self.inference_T) * S)
             t1 = np.clip(t1, 1, self.T)
             
-            t2 = self.T - int((float(i + 1) / self.inference_T) * self.T)
+            t2 = S - int((float(i + 1) / self.inference_T) * S)
             t2 = np.clip(t2, 0, self.T - 1)
             return t1, t2
         elif self.inference_schedule == "cosine":
-            t1 = self.T - int(
-                np.sin((float(i) / self.inference_T) * np.pi / 2) * self.T)
+            t1 = S - int(
+                np.sin((float(i) / self.inference_T) * np.pi / 2) * S)
             t1 = np.clip(t1, 1, self.T)
             
-            t2 = self.T - int(
-                np.sin((float(i + 1) / self.inference_T) * np.pi / 2) * self.T)
+            t2 = S - int(
+                np.sin((float(i + 1) / self.inference_T) * np.pi / 2) * S)
             t2 = np.clip(t2, 0, self.T - 1)
             return t1, t2
         else:

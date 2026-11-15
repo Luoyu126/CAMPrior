@@ -9,7 +9,8 @@ class DIFUSCO(SLSolver):
         super(DIFUSCO, self).__init__(args)            
         self.diffusion = CategoricalDiffusion(T=args.num_tp, schedule=args.diffusion_schedule)
         self.inference_schedule = DiffusionInferenceSchedule(inference_schedule=args.inference_schedule,
-                                              T=args.num_tp, inference_T=args.num_t)
+                                              T=args.num_tp, inference_T=args.num_t,
+                                              t_start=args.inference_t_start)
         self.loss_func = nn.CrossEntropyLoss()
     
     def categorical_posterior(self, target_t, t, x0_pred_prob, xt):
