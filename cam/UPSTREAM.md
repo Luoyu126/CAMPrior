@@ -192,6 +192,9 @@ shows only the items below).
     graphs insertion order equals sorted order (checked on all valid/test graphs and 300 sampled training
     graphs of the old and new pools), so ER labels and existing caches are unchanged; RB graphs were
     affected.
+40. `solvers/difusco.py`: ported from upstream commit `1d3f4ae`: training samples t from 1..T, as
+    in DIFUSCO, instead of 0..T (t=0 is the clean label itself, ~0.1% of training samples). DIFUSCO
+    runs started before this change (the learning-rate pilot, the 1000-epoch runs) used 0..T.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
