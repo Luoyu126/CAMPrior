@@ -233,6 +233,11 @@ class SLSolver(NNSolver):
         best_eval = np.inf
         wait = 0
         self.accelerator.wait_for_everyone()
+        # Local patch (see UPSTREAM.md): --save_every_epoch for supervised solvers too, so that the
+        # SL and UL arms can be evaluated with the same per-epoch test-curve protocol.
+        save_every = getattr(getattr(self, 'args', None), 'save_every_epoch', False)
+        if save_every:
+            self.save_ckpt(os.path.join(save_dir, 'epoch_init.pt'))
 
         for epoch in range(self.epochs):
             self.model.train()
@@ -272,7 +277,9 @@ class SLSolver(NNSolver):
                 wait = 0
             else:
                 wait += 1
-                
+            if save_every:
+                self.save_ckpt(os.path.join(save_dir, f'epoch_{epoch:04d}.pt'))
+
             if wait == self.patience:
                 self.accelerator.print('Early stop')
                 break
