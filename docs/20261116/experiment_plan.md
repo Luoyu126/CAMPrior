@@ -102,3 +102,43 @@
 - `DIFUSCO_e3000_s0`（卡 1）：11-15 16:45 UTC 已停（用的是旧的 16k 数据池），也已从评测队列中移除。
 - DIFUSCO 学习率试跑（卡 8、9）和 1000 epoch 档（卡 1、8、9）：跑完为止，结果留作参考。
 - DiffUCO 100 epoch 的 6 个旧任务（卡 2–7）：等新数据池建好（D5）、测完速（D6）就停，把卡让给阶段 1 的 UL 任务。
+
+## 6. CAM 论文的统一设置和 Shengyu 的脚本（11-15 查）
+
+用户转述 Shengyu 的话：CAM 论文里小 GNN 上的 DIFUSCO 和 DiffUCO 是用这个集群跑的，已经调过参。
+
+**附录 B.2 写了的**（`ref/lit_pdfs/2605.30920.txt`）：
+- 训练图 16,284 张，KaMIS 标签。
+- 网络 8 层 × 64，不输入时间步。
+- 优化器：DIFUSCO 用 AdamW；DiffUCO 用 RAdam，梯度裁剪 1.0。weight decay 1e-4。
+- 学习率“从 [1e-4, 1e-3] 中选”，温度 τ0 ∈ {0.1, 0.05}，线性退火到 0。
+- 推理 50 步 × 20 次。
+- 噪声类型在 bernoulli 和 annealing 中取好的那个（“大多是 annealing”）。
+
+**附录没写的**：epoch 数、试了多少组、按验证集还是 test 集选、Table 1 每个方法最终用的哪组超参。
+
+**Shengyu 的脚本**（`/home/shengyuf/CAM4CO/scripts/mis/mis_er_difusco.sh`、`mis_er_diffuco.sh`，2026-08-28）和我们复现的差别：
+
+| | Shengyu 的脚本 | 我们的复现（`slul_er700.sh`） |
+|---|---|---|
+| DIFUSCO 学习率 | 2e-4 | 5e-4 |
+| DIFUSCO batch | 每卡 5，10 个进程（总 50；`train_orig.sh` 注释写总 batch 40 = 8 卡 × 5） | 32，单卡 |
+| DIFUSCO epoch | 200，patience 20（会早停） | 100 / 1000，不早停 |
+| DiffUCO 学习率 | 1e-3 | 5e-4 |
+| DiffUCO 训练轨迹步数 `num_tp` | **12** | **50** |
+| DiffUCO 冲突惩罚 β | **1.2** | 1.02（默认） |
+| DiffUCO 噪声 | bernoulli（脚本里） | bernoulli 和 annealing 都跑 |
+| DiffUCO epoch | 1000（温度在 1000 epoch 内退完） | 100 |
+| 硬件 | A6000，`PROCESSES=10`（数据并行），Slurm | 2080 Ti 单卡 |
+
+**影响**：
+- DiffUCO 训练轨迹从 50 步改成 12 步，每个 epoch 的计算量约降到 1/4，§3 的卡时估计要重算。12 步也更接近 DiffUCO 原文的做法：SDDS 论文附录 A.10 提到 DiffUCO 原文只用 3–6 步，SDDS 用到 12 步。
+- β 从 1.02 改成 1.2 会改变能量地形，属于 UL 的超参。
+- 脚本未必就是 Table 1 的最终配置：脚本里写的是 bernoulli，附录却说大多用 annealing。DIFUSCO 脚本的 test 路径指向 `er_large_test`。
+
+**要向 Shengyu 确认**：
+1. Table 1 里 ER-[700-800] 的 DIFUSCO、DiffUCO 最终各用的哪组超参，包括噪声类型、`num_tp`、β、epoch 数、进程数。
+2. 调参是怎么调的：试了哪些值、多少组，按验证集还是 test 集选。
+3. 有没有调参记录（wandb 项目 `mis_er_difusco`、`mis_er_diffuco`）可以给我们看。
+
+**另外**：`/home/shengyuf/CAM4CO/scripts/config.sh` 里以明文写着一个 wandb API key，我们没用，也没复制，建议提醒 Shengyu 处理。
