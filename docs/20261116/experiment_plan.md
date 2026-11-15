@@ -138,11 +138,26 @@
 
 **更正（11-15）**：之前写的“A6000”没有依据。CAM 论文正文和附录都没提 GPU 型号。`config.sh` 里只有一行没人引用的 Slurm 默认参数 `--gres=gpu:A6000:8`，而且它和同文件里的 `PROCESSES=10` 也对不上。`handoff.md` 里“CAM 论文用的是 48 GB 的 A6000”同样没有出处。数据目录在 sa 上，10 个进程也正好对应 sa 的 10 张卡，和 Shengyu 说的“用这个集群跑的”一致。
 
-**sa 上的实际产物**：`/usr1/shengyuf/RiemannCO/mis_er_diffuco/diffuco_{annealing,bernoulli}/best.pt`，2026-05，两种噪声都有。文件里只有网络权重，没有存超参。可以直接用我们的评测流程在 128 张 test 图上评一遍，核对 CAM 表 1 的 DiffUCO 43.98。没找到 DIFUSCO 的权重。
+**sa 上的实际产物和运行记录（11-15 补，用户已和 Shengyu 确认）**：表 1 对应的运行记录在 `/home/shengyuf/CAM4CO/wandb`（Shengyu 的私有仓库 RiemannCO）。DiffUCO 的全部 run 整理在 `cam_paper_diffuco_runs.md` 和 `data/cam_paper_diffuco_runs.csv`。要点：
+- 表 1 的 43.98 = annealing、`num_tp=6`、学习率 1e-3、τ0 0.1、β 1.2，权重是 `/usr1/shengyuf/RiemannCO/mis_er_diffuco/diffuco_annealing/best.pt`（按验证集选在第 141 个 epoch，第 341 个 epoch 早停）。
+- 上面的脚本（bernoulli、`num_tp=12`）不是出表的配置。
+- `diffuco_bernoulli/best.pt` 已被 `num_tp=6` 那次覆盖，不是验证集最好的 bernoulli 权重。
+- 没找到 DIFUSCO 的权重。
 
-**要向 Shengyu 确认**：
-1. Table 1 里 ER-[700-800] 的 DIFUSCO、DiffUCO 最终各用的哪组超参，包括噪声类型、`num_tp`、β、epoch 数、进程数。
-2. 调参是怎么调的：试了哪些值、多少组，按验证集还是 test 集选。
-3. 有没有调参记录（wandb 项目 `mis_er_difusco`、`mis_er_diffuco`）可以给我们看。
+**向 Shengyu 确认的结果**：
+1. 表 1 的 DiffUCO 用的哪组超参：已从运行记录查清（见上）。DIFUSCO 的还没查。
+2. 调参怎么调的：本地记录里 ER 上只变过噪声类型和 `num_tp`（6、12），学习率、τ0、β 都没变。两种噪声在验证集上打平（44.20 对 44.19），最后按 test 选了 annealing。
+3. 调参记录：就是上面的 wandb 本地目录。
+
+### 6.1 对计划的影响（11-15，待和用户一起定）
+
+- **DiffUCO 不再调参**（用户和 Shengyu 确认）。§2 里 DiffUCO 的 6 组调参和阶段 1、2 里对应的任务取消，改为：
+  1. 用我们的评测流程把 `diffuco_annealing/best.pt` 在 128 张 test 图上测几次，确认能复现 43.98 左右。这一步也检验两边评测是否一致。
+  2. 按表 1 的配置（annealing、`num_tp=6`、学习率 1e-3、τ0 0.1、β 1.2、每 epoch 1000 张图、20 条轨迹、patience 200）用我们的代码换 2–3 个种子重训，量出种子之间的差异。
+- **要一起讨论的口径问题**：
+  - 这个 checkpoint 是早停选出来的，温度只退到约 0.086，不是“训到收敛”。按 `slul_results.md` §3 的收敛口径，要不要再补一次训满 1000 个 epoch 的？
+  - 两种噪声的取舍是按 test 定的。SL 那边如果严格按验证集选，两边口径不一致；差距约 0.1，在种子差异的量级内。
+  - SL 和 UL 的算力对齐要重算：DiffUCO 出表的那次到最好的 checkpoint 约 26 卡时、跑到早停约 63 卡时（10 卡 × 约 66 秒每 epoch）。
+- **我们之前的 DiffUCO run**（`num_tp=50`、β 1.02、学习率 5e-4、100 个 epoch，每 epoch 同样 1000 张图）和表 1 的配置差得较远，只作参考。
 
 **另外**：`/home/shengyuf/CAM4CO/scripts/config.sh` 里以明文写着一个 wandb API key，我们没用，也没复制，建议提醒 Shengyu 处理。
