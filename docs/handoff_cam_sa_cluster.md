@@ -36,7 +36,7 @@
 ## 2. 本集群环境
 
 - 机器：sa.lti.cs.cmu.edu，10 张 RTX 2080 Ti（11 GB），驱动 580.159.03。机器时间是 UTC。
-- 仓库：`/home/shengyuf/yunyi/Schrödinger Bridge/Schr-dinger-Bridge`（路径里有空格和 ö，命令里要加引号）。
+- 仓库：`/home/shengyuf/yunyi/Schrödinger Bridge/CAMPrior`（路径里有空格和 ö，命令里要加引号）。
 - 环境：每次开新 shell 先 `source /home/shengyuf/yunyi/envs/cam_env.sh`。它设置的变量：
   - `CAM_CONDA_BIN=/home/shengyuf/yunyi/envs/cam/bin`：Python 3.11 venv，torch 2.11.0+cu128，torch_scatter 2.1.2，torch_sparse 0.6.18，torch_geometric 2.8.0.post1；
   - `CAM_CACHE=/home/shengyuf/yunyi/.cache/cam`：`cam/scripts/env.sh` 会把 TMPDIR、XDG、torch、wandb 等缓存都指到这里；
@@ -135,7 +135,7 @@ GPUS="<卡1> <卡2>" SEEDS="1 2" bash cam/scripts/mis/distill_warmstart_er700.sh
 - CAMPrior 种子 2 已经从列表里删了，它第 0–70 个 epoch 的结果都还在。现在列表里的点全评完后，队列会自己退出（日志最后一行写 all done）。
 - 如果要重启（比如队列退出以后又加了新实验）：
   ```bash
-  cd "/home/shengyuf/yunyi/Schrödinger Bridge/Schr-dinger-Bridge" && source /home/shengyuf/yunyi/envs/cam_env.sh
+  cd "/home/shengyuf/yunyi/Schrödinger Bridge/CAMPrior" && source /home/shengyuf/yunyi/envs/cam_env.sh
   python3 cam/scripts/mis/eval_queue_er700.py --gpu 5 --exps_file runs/cam/eval_queue_er700.exps --dry   # 先看状态
   nohup python3 cam/scripts/mis/eval_queue_er700.py --gpu 5 --exps_file runs/cam/eval_queue_er700.exps >> runs/cam/eval_queue_er700.log 2>&1 < /dev/null &
   ```
@@ -162,7 +162,7 @@ GPUS="<卡1> <卡2>" SEEDS="1 2" bash cam/scripts/mis/distill_warmstart_er700.sh
   - 页面明确标注"本集群结果 · sa.lti.cs.cmu.edu"，用户要求一定要标清楚。
 - 生成器：`runs/plots/make_sa_report.py`，配合模板 `runs/plots/sa_report_template.html`。两个文件都没提交，在 git 忽略的 `runs/` 下。
   ```bash
-  cd "/home/shengyuf/yunyi/Schrödinger Bridge/Schr-dinger-Bridge"
+  cd "/home/shengyuf/yunyi/Schrödinger Bridge/CAMPrior"
   python3 runs/plots/make_sa_report.py runs/plots/sa_er700_report.html
   ```
   然后用 Artifact 工具发布这个文件。新会话里要带上 `url` 参数，并先 read 一次，这样还是同一个链接。

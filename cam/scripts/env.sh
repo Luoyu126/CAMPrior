@@ -7,8 +7,8 @@
 #   so that nothing is written to ~/.cache, ~/.config, ~/.triton, ~/.nv, /tmp or the conda env.
 
 _CAM_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export CAM_ROOT="$(cd "$_CAM_SCRIPTS_DIR/.." && pwd)"     # .../Schr-dinger-Bridge/cam
-export CAM_REPO="$(cd "$CAM_ROOT/.." && pwd)"             # .../Schr-dinger-Bridge
+export CAM_ROOT="$(cd "$_CAM_SCRIPTS_DIR/.." && pwd)"     # .../CAMPrior/cam
+export CAM_REPO="$(cd "$CAM_ROOT/.." && pwd)"             # .../CAMPrior
 export CAM_CONDA_BIN="${CAM_CONDA_BIN:-/usr0/home/shengyuf/anaconda3/envs/CAM/bin}"
 export CAM_PYTHON="$CAM_CONDA_BIN/python"
 export CAM_ACCELERATE="$CAM_CONDA_BIN/accelerate"
