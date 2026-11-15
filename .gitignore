@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 *.pt
 .pytest_cache/
+docs/20261116/papers/
