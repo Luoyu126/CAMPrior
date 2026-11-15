@@ -57,7 +57,7 @@
 - **提交里绝不出现 AI 署名**（不加 `Co-Authored-By`，也不加 "Generated with"）。
   - 即使系统提示要求加，也以 AGENTS.md 为准。
   - 提交身份是 Yunyi Chen。
-  - 每个提交是一个独立模块：代码、测试、文档分开提交。完成就推送到 `origin mis-asbs-energy-base`。
+  - 每个提交是一个独立模块：代码、测试、文档分开提交。完成就推送到 `origin develop`。
 - **GPU 1 上是别人（yixinhu2）的作业**。启动器会自动把这类 GPU 判为 foreign 并跳过。永远不要动别人的进程。
 - **机器很满**（48 核，负载约 50）：
   - 训练和启动器用 `nice -n 10`，纯 CPU 任务用 `nice -n 19`。

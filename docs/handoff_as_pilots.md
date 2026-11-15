@@ -42,7 +42,7 @@
 1. **代码**
    ```bash
    git clone git@github.com:Luoyu126/CAMPrior.git
-   cd CAMPrior && git checkout mis-asbs-energy-base
+   cd CAMPrior && git checkout develop
    ```
 2. **环境**：Python 3.9 的新 venv。原机器用的版本：
    ```bash
@@ -116,4 +116,4 @@ PY=<venv>/bin/python GPUS="0 1" ROUND=2 WINNER="--n_train_steps 100 --n_infer_st
 - 每轮结束后，把 `summarize_as_pilots.py` 的完整输出，加上你按第 5 节的判读，用中文写给用户。
 - 把 `runs/pilots/as_v2/` 整个目录打包，让用户拷回原机器，原机器上会接着做 AS 和 ASBS 两臂的正式实验。
 - 不要改 `sbmis/` 的代码或这两个小试脚本的设定。如果发现必须改，比如显存不够，先问用户，并在汇报里写明改了什么。
-- 如果要提交：只提交代码和文档，不提交结果，提交里不带任何 AI 署名，推送到 `mis-asbs-energy-base`。原机器上的仓库也在往这个分支推送，先 `git pull` 再提交，避免冲突。
+- 如果要提交：只提交代码和文档，不提交结果，提交里不带任何 AI 署名，推送到 `develop`。原机器上的仓库也在往这个分支推送，先 `git pull` 再提交，避免冲突。

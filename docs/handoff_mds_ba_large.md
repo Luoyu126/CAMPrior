@@ -46,7 +46,7 @@ CAM 论文没有 MDS 的结果，RLSA 论文也没做 MDS；可比的基线来�
 
 ```bash
 cd <本集群的仓库目录>            # sd 上是 /usr0/home/shengyuf/yunyi/Schr-dinger-Bridge
-git pull origin mis-asbs-energy-base
+git pull origin develop
 source cam/scripts/env.sh        # 按本集群交接文档的方式准备环境
 
 # 数据：CAM 的 HF 发布里的 MDS.zip（约 200 MB，解压后 BA_{small,large}_{train,valid,test}）

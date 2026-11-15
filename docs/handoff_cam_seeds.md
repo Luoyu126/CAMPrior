@@ -55,7 +55,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PROJECT=mis_er700 EXP=<组名>_
 2. **代码**
    ```bash
    git pull   # 或者重新 clone git@github.com:Luoyu126/CAMPrior.git
-   git checkout mis-asbs-energy-base
+   git checkout develop
    ```
 
 3. **环境**：建一个 **Python 3.11** 的新 venv，放在工作目录下。原机器的版本见 `cam/scripts/requirements_env.txt`。关键的几个包：
@@ -193,7 +193,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PROJECT=mis_er700 EXP=<组名>_
    runs/cam/mis_er700_test10/queue_*.log  runs/cam/mis_er700_large/queue_*.log
    ```
 3. 不要改 `cam/` 的代码或训练设定。如果发现必须改，先问用户，并在汇报里写明改了什么、为什么改。
-4. 如果要提交：只提交代码和文档，不提交结果（`runs/` 已被 git 忽略），提交里不带任何 AI 署名，推送到 `mis-asbs-energy-base`。原机器上的仓库也在往这个分支推送，先 `git pull` 再提交。
+4. 如果要提交：只提交代码和文档，不提交结果（`runs/` 已被 git 忽略），提交里不带任何 AI 署名，推送到 `develop`。原机器上的仓库也在往这个分支推送，先 `git pull` 再提交。
 
 ## 7. 消融实验（另外 4 张卡，各 1 个种子）
 

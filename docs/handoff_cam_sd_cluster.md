@@ -184,7 +184,7 @@
 
 ```bash
 cd /usr0/home/shengyuf/yunyi/Schr-dinger-Bridge
-git pull origin mis-asbs-energy-base
+git pull origin develop
 source cam/scripts/env.sh
 $CAM_PYTHON cam/tests/test_mcl.py                                   # 5/5 passed（test_5 显示 skipped）
 MCL_TEST_RB=/data/shengyuf/MIS/RB_small_valid $CAM_PYTHON cam/tests/test_mcl.py   # 5/5
@@ -350,7 +350,7 @@ RB-large：
 **命令**（先停 2–5 号卡上的四个最大团训练进程：用 `ps` 找到对应 pid 后逐个 `kill <pid>`，不要用 `pkill -f`）：
 
 ```bash
-git pull origin mis-asbs-energy-base
+git pull origin develop
 PROBLEM=mcl GPUS="2 3 4 5" SCALES=small \
   RUN_GROUPS="CAM_tau0.1_reg0.1_D10 CAM_tau0.1_reg1_D10 CAMPrior_p1_d10_reg0.1_D10 CAMPrior_p1_d10_reg1_D10" \
   DRY=1 bash cam/scripts/mis/rb_runs.sh          # 先看命令，应带 --lambd 和 --num_d 10
@@ -441,7 +441,7 @@ PROBLEM=mcl GPUS="2 3 4 5" SCALES=small \
 **命令**（`<gA>` `<gB>` `<gC>` 换成选好的卡号；必须带训练时的 flag，CAMPrior 会核对 `.prior.json`）：
 
 ```bash
-git pull origin mis-asbs-energy-base
+git pull origin develop
 mkdir -p runs/cam/mds_ba_large_test
 # 冒烟：8 张图、只评第 0 个 epoch，确认能跑，然后删掉这个结果目录再正式跑
 GPU=<gA> SCALE=large EXP=CAM_tau0.1_e100_s0 EPOCHS="0" NTEST=8 bash cam/scripts/mds/mds_curve.sh --tau0 0.1
