@@ -254,4 +254,4 @@
 ### 6.4 11-16 00:05 UTC 的状态
 
 - **ER 上的任务全部停掉**（用户 11-16）：给 16 万张图打标签的两个进程、UL 图缓存、DIFUSCO 1000 epoch × 3 个种子、旧的 DiffUCO × 6、评测队列。已经打好的标签和缓存留在磁盘上，没删。相关提醒已关闭。10 张卡全部空出来。另一个会话 2 天前开的 ER 评测队列（pid 3295845）没动。
-- **DiffUCO 不再复现**（用户 11-16）：直接用 CAM 论文表 1 那次的记录，导入为 `experiments/20260513_rbsmall_diffuco_cam_table1/`，训练曲线已同步到 wandb 项目 `yunyi-organization/SLVUL`。上面 §6.1 里“复现 + 多种子”的提议作废。
+- **DiffUCO 不再复现**（用户 11-16）：直接用 CAM 论文表 1 那次的记录，导入为 `experiments/20260513_diffuco_rbsmall_annealing/`（11-16 改名；同时导入了只换噪声的 `experiments/20260513_diffuco_rbsmall_bernoulli/`），训练曲线已同步到 wandb 项目 `yunyi-organization/SLVUL`。上面 §6.1 里“复现 + 多种子”的提议作废。

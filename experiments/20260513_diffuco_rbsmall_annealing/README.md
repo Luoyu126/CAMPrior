@@ -1,4 +1,4 @@
-# 20260513_rbsmall_diffuco_cam_table1：CAM 论文表 1 里 RB-[200-300] 的 DiffUCO
+# 20260513_diffuco_rbsmall_annealing：CAM 论文表 1 里 RB-[200-300] 的 DiffUCO（annealing 噪声）
 
 ## 目的
 
@@ -33,12 +33,12 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 
 | run | 验证最好（epoch） | test（1000 张） | wandb |
 |---|---|---|---|
-| 训练 | 20.27（137） | — | [cam_table1_rbsmall_diffuco_train](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/gcgve1vl) |
+| 训练 | 20.27（137） | — | [20260513_diffuco_rbsmall_annealing](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/gcgve1vl) |
 | 测试 05-14 | — | 19.872（每张 0.36 秒） | 已从 wandb 删除（11-16），本地记录在 `wandb/` |
 | 测试 05-22 | — | 19.876（每张 0.37 秒）= 表 1 的 19.88 | 已从 wandb 删除（11-16），本地记录在 `wandb/` |
 
 - `runs.csv`：三个 run 的超参和结果（`cam/scripts/mis/collect_wandb_runs.py` 生成）。
-- 权重：`runs/experiments/20260513_rbsmall_diffuco_cam_table1/best.pt`（复制自 `/usr1/shengyuf/RiemannCO/mis_rb_small_diffuco/diffuco_annealing/best.pt`，MD5 一致，不进 git）。是训练第 137 个 epoch 按验证集存下的。
+- 权重：`runs/experiments/20260513_diffuco_rbsmall_annealing/best.pt`（复制自 `/usr1/shengyuf/RiemannCO/mis_rb_small_diffuco/diffuco_annealing/best.pt`，MD5 一致，不进 git）。是训练第 137 个 epoch 按验证集存下的。
 
 ## wandb 记录是怎么来的（11-16）
 
@@ -48,7 +48,8 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 4. 两个测试 run 原本只在控制台输出结果，补写进 summary：`test/mis_size`、`test/time_per_graph_s`。
 5. 11-16 补了一条正号的曲线 `eval/mis_size`（验证集 MIS 大小，= −`eval/object`），横轴用 `epoch_idx`（原始记录的步数已用完，只能接在后面写）。summary 里加了 `eval/mis_size_best` = 20.271。
 6. 11-16 按用户要求把两个测试 run 从 wandb 删掉了；test 结果写进训练 run 的 summary：`test/mis_size` = 19.876（05-22），`test/mis_size_0514` = 19.872，`test/time_per_graph_s` = 0.371。本地的 `wandb/` 里仍保留两个测试 run 的目录。
-7. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号），超参一项不少；原件在 Shengyu 的目录和 wandb 上。
+7. 11-16 按“日期_方法_数据集_加噪方式”统一命名：文件夹从 `20260513_rbsmall_diffuco_cam_table1` 改为现名，wandb 上的 run 也改成同名，并加了 `annealing` 标签。同时导入了同一天、只换了噪声的 bernoulli 那次：`experiments/20260513_diffuco_rbsmall_bernoulli/`。
+8. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号），超参一项不少；原件在 Shengyu 的目录和 wandb 上。
 
 ## 结论和注意
 
