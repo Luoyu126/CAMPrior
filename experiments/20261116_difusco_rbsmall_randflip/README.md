@@ -60,12 +60,19 @@ SL 一侧在 RB-small 上的第一次训练，和 CAM 论文那次 DiffUCO（`20
 - 11-16 11:19（UTC）检查：**已早停**。第 139 个 epoch 跑完（10:56）后触发（连续 20 个 epoch 没超过最好值），共 140 个 epoch，用时约 10 小时 20 分钟（后半程被别的用户的 CPU 进程拖慢）。
   - 验证最好 19.67，在第 119 个 epoch，`best.pt` 就是这一个（第 131 个 epoch 也是 19.67，但只有严格更高才覆盖，所以没换）。
   - 第 120–139 个 epoch 在 19.47–19.67 之间。
-  - test 还没跑。
+  - test：11-16 12:17–13:01（UTC）用 `test.sh` 在 1000 张测试图上测了两次，权重相同、只换推理采样种子：种子 0（GPU 0）19.314，种子 1（GPU 9）19.290。
+    - 做法和 CAM 论文（附录 B.2）及 Shengyu 测 DiffUCO 时一致：训练命令去掉 `--do_train`，加载 `best.pt`，全部 1000 张，50 步 × 20 次，贪心解码，每张图取最好。区别是单卡测，DiffUCO 当时 10 卡。
+    - 每张约 1.25 秒，是机器 CPU 被别人占满时测的，不能和 DiffUCO 的 0.37 秒比。
+    - 结果写进了 wandb 训练 run 的 summary：`test/mis_size`、`test/mis_size_seed1`、`test/time_per_graph_s`、`eval/mis_size_best`。
 
 ## 结果
 
 | run | 验证最好（epoch） | test | wandb |
 |---|---|---|---|
-| `20261116_difusco_rbsmall_randflip_s0` | 19.67（119） | 待测 | [rox3ivnr](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/rox3ivnr) |
+| `20261116_difusco_rbsmall_randflip_s0` | 19.67（119） | 19.314（测试种子 0）/ 19.290（测试种子 1），每张约 1.25 秒 | [rox3ivnr](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/rox3ivnr) |
 
 ## 结论
+
+- RB-small 上，修好标签、每步 40 张图、按 Shengyu 的超参训到早停后，DIFUSCO test 19.30（两个推理种子平均），DiffUCO（annealing）19.87，差 0.57。
+- 论文表 1 里 DIFUSCO 是 18.74；这次高 0.56，可能来自 RB 标签对齐的修复（当时的标签 96% 不是独立集），但表 1 那次的配置没找到，不能确定。
+- 只有一个训练种子、一组超参，还不能说 DIFUSCO 已经调到最好。

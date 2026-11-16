@@ -1,0 +1,184 @@
+N_anneal:
+    value: 1000
+N_equil:
+    value: 0
+N_warmup:
+    value: 0
+batch_size:
+    value: 40
+batches_per_step:
+    value: null
+beta:
+    value: 1.02
+block_eval_R:
+    value: 128
+block_max_conf:
+    value: 2
+block_screen_R:
+    value: 64
+block_seeds:
+    value: 32
+checkpoint:
+    value: null
+compile:
+    value: false
+data_precision:
+    value: fp32
+diffusion_schedule:
+    value: linear
+do_train:
+    value: true
+epochs:
+    value: 200
+grad_clip:
+    value: null
+gradient_accumulation_steps:
+    value: 1
+inference_schedule:
+    value: cosine
+inference_t_start:
+    value: null
+inner_loop_steps:
+    value: 1
+label_frac:
+    value: 1
+label_gpus:
+    value: ""
+label_lambda:
+    value: 1
+label_mode:
+    value: cam
+label_states:
+    value: 1
+label_timeout:
+    value: 900
+lambd:
+    value: 0
+lin_neighbors:
+    value: false
+log_file:
+    value: log.txt
+lr:
+    value: 0.0002
+lr_scheduler:
+    value: cosine-decay
+method:
+    value: DIFUSCO
+mini_batch_size:
+    value: 1
+mis_decoding:
+    value: continuous
+model:
+    value: EncodeProcessDecode
+noise_energy:
+    value: bernoulli
+num_clips:
+    value: 1
+num_d:
+    value: 30
+num_h:
+    value: 64
+num_k:
+    value: 20
+num_kp:
+    value: 20
+num_l:
+    value: 8
+num_t:
+    value: 50
+num_tp:
+    value: 1000
+num_workers:
+    value: 4
+optimizer:
+    value: AdamW
+patience:
+    value: 20
+prior_allow_mismatch:
+    value: false
+prior_beta:
+    value: null
+prior_d:
+    value: 20
+prior_eps:
+    value: 0
+prior_fixed:
+    value: false
+prior_kl_ref:
+    value: rlsa
+prior_policy:
+    value: "on"
+prior_recenter:
+    value: "off"
+prior_schedule:
+    value: linear
+prior_tau_min:
+    value: 0.001
+prior_tau_ratio:
+    value: null
+prior_tau0:
+    value: 0.01
+prior_tau1:
+    value: 0
+problem:
+    value: mis
+repetition:
+    value: 1
+residual_init:
+    value: zero
+samples_per_epoch:
+    value: 1000
+save_dir:
+    value: /home/shengyuf/yunyi/Schrödinger Bridge/CAMPrior/runs/experiments/20261116_difusco_rbsmall_randflip/20261116_difusco_rbsmall_randflip_s0
+save_every_epoch:
+    value: false
+seed:
+    value: 0
+sim_objective:
+    value: energy
+sim_rollouts:
+    value: 1
+simpol_chunk:
+    value: 256
+simpol_kl:
+    value: "on"
+skip_decode:
+    value: false
+sparse_factor:
+    value: 50
+start_epoch:
+    value: 0
+stop_epoch:
+    value: null
+tau0:
+    value: 0.1
+tau1:
+    value: 0
+temp_schedule:
+    value: linear
+test_path:
+    value: /usr1/shengyuf/MIS/RB_small_test
+test_samples:
+    value: -1
+time_scale:
+    value: 1000
+train_path:
+    value: /usr1/shengyuf/MIS/RB_small_train
+train_samples:
+    value: -1
+two_opt_iterations:
+    value: 100
+use_activation_checkpoint:
+    value: false
+valid_path:
+    value: /usr1/shengyuf/MIS/RB_small_valid
+valid_samples:
+    value: 64
+wandb_entity:
+    value: null
+wandb_name:
+    value: SLVUL
+wandb_run_name:
+    value: 20261116_difusco_rbsmall_randflip_s0
+weight_decay:
+    value: 0.0001
