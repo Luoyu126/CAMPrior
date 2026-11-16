@@ -184,7 +184,7 @@
   | DIFUSCO（09-30 起的消融） | RB-small | 4000（整个训练集） | 5 | 80 | 10 |
 
   验证集也被分到 10 卡上：DiffUCO 用 64 张（ER 和 RB-small 都是），补齐到每卡 7 张，一共 70 张，所以分数都是 1/70 的倍数；DIFUSCO 的消融不限张数，RB-small 验证集 500 张，每卡 50 张。
-- **等效 batch**：DiffUCO 在 RB-small 上每步 40 张图（4 × 10），在 ER 上每步 10 张；DIFUSCO 每步 50 张（5 × 10）。我们单卡复现时，要么用梯度累积补到同样的等效 batch，要么把 batch 当成一个要说明的差异。
+- **等效 batch**：DiffUCO 在 RB-small 上每步 40 张图（4 × 10），在 ER 上每步 10 张；Shengyu 本地的 DIFUSCO 脚本每步 50 张（5 × 10）。我们单卡训练直接用 batch 40，两边都是每步 40 张图（11-16 定，见 §6.3）。
 - **卡时**：前面的时间都是 10 卡的墙钟时间，换成卡时要乘 10。
 - **表 1 的 DIFUSCO（RB-small 18.74，差 6.77%，5.33 分钟）在 sa 上找不到记录**（11-15 查）：
   - 查过的范围：`/home/shengyuf/CAM4CO/wandb` 全部 422 个 run，包括没有元数据的，也扫了 wandb 的二进制记录；`/usr1/shengyuf/RiemannCO/` 下没有 DIFUSCO 的输出目录；`CAM4CO/experiments/` 里只有 FM；全盘按文件名搜 `*difusco*` 也没有对应的产物。
