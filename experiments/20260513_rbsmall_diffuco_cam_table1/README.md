@@ -46,7 +46,8 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 2. 用 `wandb sync --include-online --include-synced -p SLVUL -e yunyi-organization` 上传到我们的项目。训练 run 的曲线完整：338 个验证点，最好 20.271。
 3. 在 wandb 上改了名字（原来两个测试 run 同名），加了标签 `cam_paper`、`imported`、`rb_small`、`DiffUCO`。
 4. 两个测试 run 原本只在控制台输出结果，补写进 summary：`test/mis_size`、`test/time_per_graph_s`。
-5. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号），超参一项不少；原件在 Shengyu 的目录和 wandb 上。
+5. 11-16 补了一条正号的曲线 `eval/mis_size`（验证集 MIS 大小，= −`eval/object`），横轴用 `epoch_idx`（原始记录的步数已用完，只能接在后面写）。summary 里加了 `eval/mis_size_best` = 20.271。
+6. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号），超参一项不少；原件在 Shengyu 的目录和 wandb 上。
 
 ## 结论和注意
 
