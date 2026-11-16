@@ -88,6 +88,15 @@ class MetaSolver(object):
         log = ' '.join(log)
         self.accelerator.print(log)
 
+    # Local patch (see UPSTREAM.md): eval/object is an energy to minimize, so for maximization
+    # problems it is minus the solution size. Also report the size itself, with its natural sign.
+    # eval/object and 'Avg. obj' stay unchanged (best.pt selection and log parsers rely on them).
+    SIZE_KEYS = {'mis': 'mis_size', 'mcl': 'clique_size', 'mcut': 'cut_size'}
+
+    def size_metric(self, obj_result):
+        key = self.SIZE_KEYS.get(self.args.problem)
+        return {} if key is None else {f'eval/{key}': -obj_result}
+
     def evaluate_single(graph):
         raise NotImplementedError
     
@@ -135,6 +144,9 @@ class MetaSolver(object):
                 with open(log_path, 'w') as f:
                     f.write('Avg. obj: %f\n'%obj_result)
                     f.write('Avg. time: %f\n'%time_result)
+                    for k, v in self.size_metric(obj_result).items():  # local patch, see above
+                        f.write('Avg. size: %f\n'%v)
+                        self.accelerator.print('Avg. size: %f\n'%v)
                 # Local patch (see UPSTREAM.md): per-graph objective and time, so that gaps to
                 # per-graph reference sizes can be computed offline. Only written at test time.
                 files = getattr(getattr(dataloader, 'dataset', None), 'files', None) or []
@@ -266,7 +278,8 @@ class SLSolver(NNSolver):
             with torch.no_grad():
                 obj_result, time_result = self.evaluate('valid')
             
-            logger = {'Epoch': epoch, 'eval/object': obj_result, 'eval/time': time_result}
+            logger = {'Epoch': epoch, 'eval/object': obj_result, 'eval/time': time_result,
+                      **self.size_metric(obj_result)}
             
             self.log(logger)
             self.print_log(logger)
@@ -372,7 +385,8 @@ class ULSolver(NNSolver):
             with torch.no_grad():
                 obj_result, time_result = self.evaluate('valid')
             
-            logger = {'Epoch': epoch, 'eval/object': obj_result, 'eval/time': time_result}
+            logger = {'Epoch': epoch, 'eval/object': obj_result, 'eval/time': time_result,
+                      **self.size_metric(obj_result)}
             self.log(logger)
             self.print_log(logger)
             

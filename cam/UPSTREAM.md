@@ -196,6 +196,10 @@ shows only the items below).
 40. `solvers/difusco.py`: ported from upstream commit `1d3f4ae`: training samples t from 1..T, as
     in DIFUSCO, instead of 0..T (t=0 is the clean label itself, ~0.1% of training samples). DIFUSCO
     runs started before this change (the learning-rate pilot, the 1000-epoch runs) used 0..T.
+41. `solvers/meta_solver.py`: validation also logs the solution size with its natural sign
+    (`eval/mis_size` for MIS, `eval/clique_size` for max clique, `eval/cut_size` for max cut, i.e.
+    minus `eval/object`), and a test run writes an extra line `Avg. size: S` after `Avg. time`.
+    `eval/object` and `Avg. obj` are unchanged: best.pt selection and our log parsers use them.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
