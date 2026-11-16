@@ -63,6 +63,10 @@ def main():
     parser.add_argument("--num_h", type=int, default=100, help='hidden dimension')
     parser.add_argument("--time_scale", type=int, default=1000, help='time scale')
     parser.add_argument('--diffusion_schedule', type=str, default='linear', choices=['cosine', 'linear'])
+    # local addition (see UPSTREAM.md item 42): energy-heated DIFUSCO forward and re-noising sampler
+    parser.add_argument('--heat_lambda', type=float, default=0.0, help='flip prob beta_t*sigmoid(lambda_t*dE); 0 = uniform')
+    parser.add_argument('--heat_until', type=float, default=0.5, help='lambda_t decays linearly to 0 at heat_until*num_tp')
+    parser.add_argument('--difusco_sampler', type=str, default='posterior', choices=['posterior', 'renoise'])
     parser.add_argument('--optimizer', type=str, default='AdamW')
     parser.add_argument('--lr_scheduler', type=str, default='cosine-decay')
     parser.add_argument('--grad_clip', type=float, default=None)

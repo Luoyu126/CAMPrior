@@ -1,5 +1,6 @@
 from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
+from utils.heated_forward import HeatedForward
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -12,6 +13,10 @@ class DIFUSCO(SLSolver):
                                               T=args.num_tp, inference_T=args.num_t,
                                               t_start=args.inference_t_start)
         self.loss_func = nn.CrossEntropyLoss()
+        # local addition (see UPSTREAM.md item 42): energy-heated forward and re-noising sampler
+        self.sampler = getattr(args, 'difusco_sampler', 'posterior')
+        self.heated = HeatedForward(self.diffusion.beta, getattr(args, 'heat_lambda', 0.0),
+                                    getattr(args, 'heat_until', 0.5), args.beta)
     
     def categorical_posterior(self, target_t, t, x0_pred_prob, xt):
         """Sample from the categorical posterior for a given time step.
@@ -105,8 +110,14 @@ class DIFUSCO(SLSolver):
             time = time[graph.batch.cpu().numpy()]
             solution_0 = graph.x
 
-        solution_0_onehot = F.one_hot(solution_0.long(), num_classes=2).float()
-        solution_t = self.diffusion.sample(solution_0_onehot, time)
+        if self.heated.heat_lambda == 0:
+            solution_0_onehot = F.one_hot(solution_0.long(), num_classes=2).float()
+            solution_t = self.diffusion.sample(solution_0_onehot, time)
+        else:
+            assert self.solution_type == 'node'
+            A = self.adjacency(graph)
+            t_nodes = torch.from_numpy(time).long().to(solution_0.device)
+            solution_t = self.heated.sample(A, graph.b, solution_0.float().view(-1, 1), t_nodes)
         time = torch.from_numpy(time).float().to(self.accelerator.device)
         target = solution_0.long().squeeze(1)          
         
@@ -116,6 +127,24 @@ class DIFUSCO(SLSolver):
         loss = self.loss_func(logits, target)
         
         return loss
+
+    @staticmethod
+    def adjacency(graph):
+        return torch.sparse_coo_tensor(graph.edge_index, graph.edge_weight,
+                                       torch.Size((graph.num_nodes, graph.num_nodes))).to_sparse_csr()
+
+    def renoise(self, graph, x0_pred_prob, t2):
+        """Re-noising sampler: draw x0 ~ Bernoulli(p) and run the training forward from it to t2.
+
+        It does not use x_t. It is the reverse of the forward q(x_{t-1} | x_t, x_0) = q(x_{t-1} | x_0),
+        which has the same marginals q(x_t | x_0) as the training forward (DDIM, Song et al. 2021 §4).
+        At t2 = 0 it returns the predicted probabilities, as the posterior sampler does."""
+        p1 = x0_pred_prob[..., 1].reshape(graph.num_nodes, -1)
+        if t2 == 0:
+            return p1.clamp(0, 1)
+        x0 = torch.bernoulli(p1.clamp(0, 1))
+        t_nodes = torch.full((graph.num_nodes,), int(t2), dtype=torch.long, device=x0.device)
+        return self.heated.sample(graph.A, graph.b, x0, t_nodes)
 
     def evaluate_single(self, graph):
         best_energies = []
@@ -138,7 +167,10 @@ class DIFUSCO(SLSolver):
                 time = torch.ones((solution.shape[0],self.num_k), device=self.accelerator.device, dtype=torch.float)*t1            
                 logits = self.model(graph, solution.unsqueeze(-1), time)
                 x0_pred_prob = logits.softmax(dim=-1)
-                solution = self.categorical_posterior(t2, t1, x0_pred_prob, solution)
+                if self.sampler == 'renoise':
+                    solution = self.renoise(graph, x0_pred_prob, t2)
+                else:
+                    solution = self.categorical_posterior(t2, t1, x0_pred_prob, solution)
     
             best_energy, _ = self.problem.evaluate(graph, solution)
             best_energies.append(best_energy)

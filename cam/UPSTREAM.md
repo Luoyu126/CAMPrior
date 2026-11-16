@@ -200,6 +200,15 @@ shows only the items below).
     (`eval/mis_size` for MIS, `eval/clique_size` for max clique, `eval/cut_size` for max cut, i.e.
     minus `eval/object`), and a test run writes an extra line `Avg. size: S` after `Avg. time`.
     `eval/object` and `Avg. obj` are unchanged: best.pt selection and our log parsers use them.
+42. `utils/heated_forward.py`, `solvers/difusco.py`, `main.py`: energy-heated DIFUSCO forward.
+    `--heat_lambda L` (default 0 = unchanged) flips node i at step s with probability
+    beta_s * sigmoid(lambda_s * dE_i), dE_i the MIS energy change of the flip (same energy as
+    `envs/mis.py`); lambda_s decays linearly to 0 at `--heat_until` * num_tp (default 0.5), after which
+    the steps are uniform and done in one closed-form jump. x_t is simulated from the label step by step.
+    `--difusco_sampler renoise` (default `posterior` = unchanged) replaces the D3PM posterior at
+    inference by: draw x0 ~ Bernoulli(predicted probs), run the same forward from x0 to the next step,
+    so inference sees the training marginals. Tests: `tests/test_heated_forward.py`; diagnostic:
+    `scripts/mis/heated_forward_curve.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
