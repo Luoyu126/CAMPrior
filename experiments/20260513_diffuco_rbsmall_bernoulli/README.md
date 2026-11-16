@@ -24,7 +24,7 @@
 
 | run | wandb 原名 | 开始（UTC） | 结束 |
 |---|---|---|---|
-| 训练 `biczvw9h` | diffuco_bernoulli | 2026-05-13 18:05 | 第 301 个 epoch 早停（约 20:27） |
+| 训练 `biczvw9h`（wandb 上已换成重放的 `bxfcarwm`） | diffuco_bernoulli | 2026-05-13 18:05 | 第 301 个 epoch 早停（约 20:27） |
 | 测试 `w5tfv6zb` | test_diffuco_bernoulli | 2026-05-13 21:04 | 21:09 |
 | 测试 `8hf0zjro` | test_diffuco_annealing（启动参数写的 annealing，但读的是 bernoulli 的权重） | 2026-05-14 00:47 | 00:47 |
 
@@ -34,7 +34,7 @@
 
 | run | 验证最好（epoch） | test（1000 张） | wandb |
 |---|---|---|---|
-| 训练 | 20.11（101） | — | [20260513_diffuco_rbsmall_bernoulli](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/biczvw9h) |
+| 训练 | 20.11（101） | — | [20260513_diffuco_rbsmall_bernoulli](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/bxfcarwm) |
 | 测试 05-13 | — | 19.701（每张 0.33 秒） | 没上传 wandb，本地记录在 `wandb/` |
 | 测试 05-14 | — | 19.739（每张 0.36 秒） | 没上传 wandb，本地记录在 `wandb/` |
 
@@ -52,6 +52,7 @@
    - `test/mis_size` = 19.701（05-13）；
    - `test/mis_size_0514` = 19.739。
 5. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号）。
+6. 11-16 发现补的 `eval/mis_size` 接在第 3 万多步之后，和按当前代码跑的新实验（`eval/mis_size` 和 `eval/object` 在同一步，每个 epoch 100 步）对不上。用 `cam/scripts/mis/replay_wandb_run.py` 把训练 run 重放成新 run `bxfcarwm`：原有每一行按原步数写回，每个验证点在同一步加上 `eval/mis_size` = −`eval/object`，名字、超参、标签和 test 相关的 summary 照抄；不重放系统指标和原始时间戳。逐步核对 302 个点完全一致后，删掉了旧 run `biczvw9h`。本地 `wandb/` 里新旧两个目录都留着。
 
 ## 和 annealing 对比
 

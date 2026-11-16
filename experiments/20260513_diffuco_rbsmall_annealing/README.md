@@ -25,7 +25,7 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 
 | run | wandb 原名 | 开始（UTC） | 结束 |
 |---|---|---|---|
-| 训练 `gcgve1vl` | diffuco_annealing | 2026-05-13 21:46 | 第 337 个 epoch 早停（约 00:25） |
+| 训练 `gcgve1vl`（wandb 上已换成重放的 `79v01gz7`） | diffuco_annealing | 2026-05-13 21:46 | 第 337 个 epoch 早停（约 00:25） |
 | 测试 `kur6gnkv` | test_diffuco_annealing | 2026-05-14 00:30 | 00:31 |
 | 测试 `40tvlj2t` | test_diffuco_annealing | 2026-05-22 15:27 | 15:33 |
 
@@ -33,7 +33,7 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 
 | run | 验证最好（epoch） | test（1000 张） | wandb |
 |---|---|---|---|
-| 训练 | 20.27（137） | — | [20260513_diffuco_rbsmall_annealing](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/gcgve1vl) |
+| 训练 | 20.27（137） | — | [20260513_diffuco_rbsmall_annealing](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/79v01gz7) |
 | 测试 05-14 | — | 19.872（每张 0.36 秒） | 已从 wandb 删除（11-16），本地记录在 `wandb/` |
 | 测试 05-22 | — | 19.876（每张 0.37 秒）= 表 1 的 19.88 | 已从 wandb 删除（11-16），本地记录在 `wandb/` |
 
@@ -50,6 +50,7 @@ SL vs UL 对比里 UL（DiffUCO）这一侧的基准。用户和 Shengyu 确认�
 6. 11-16 按用户要求把两个测试 run 从 wandb 删掉了；test 结果写进训练 run 的 summary：`test/mis_size` = 19.876（05-22），`test/mis_size_0514` = 19.872，`test/time_per_graph_s` = 0.371。本地的 `wandb/` 里仍保留两个测试 run 的目录。
 7. 11-16 按“日期_方法_数据集_加噪方式”统一命名：文件夹从 `20260513_rbsmall_diffuco_cam_table1` 改为现名，wandb 上的 run 也改成同名，并加了 `annealing` 标签。同时导入了同一天、只换了噪声的 bernoulli 那次：`experiments/20260513_diffuco_rbsmall_bernoulli/`。
 8. 进 git 的 `config.yaml` 去掉了 wandb 自动加的 `_wandb` 段（含 Shengyu 的邮箱、主机和 GPU 序列号），超参一项不少；原件在 Shengyu 的目录和 wandb 上。
+9. 11-16 发现补的 `eval/mis_size` 接在第 3 万多步之后，和按当前代码跑的新实验（`eval/mis_size` 和 `eval/object` 在同一步，每个 epoch 100 步）对不上。用 `cam/scripts/mis/replay_wandb_run.py` 把训练 run 重放成新 run `79v01gz7`：原有每一行按原步数写回，每个验证点在同一步加上 `eval/mis_size` = −`eval/object`，名字、超参、标签和 test 相关的 summary 照抄；不重放系统指标和原始时间戳。逐步核对 338 个点完全一致后，删掉了旧 run `gcgve1vl`。本地 `wandb/` 里新旧两个目录都留着。
 
 ## 结论和注意
 
