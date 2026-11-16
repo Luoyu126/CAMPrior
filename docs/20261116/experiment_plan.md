@@ -250,3 +250,8 @@
 - 11-15 曾暂定 50 张（对应 Shengyu 本地 DIFUSCO 脚本的 5 × 10 卡），已改。
 
 **我们调参的起点**：以上面三份脚本的共同设置为中心，学习率 2e-4、weight decay 1e-4、200 epoch、patience 20、每步 40 张图、cosine 推理。用修好的代码（`cam/UPSTREAM.md` 第 39、40 条）。具体网格待定。
+
+### 6.4 11-16 00:05 UTC 的状态
+
+- **ER 上的任务全部停掉**（用户 11-16）：给 16 万张图打标签的两个进程、UL 图缓存、DIFUSCO 1000 epoch × 3 个种子、旧的 DiffUCO × 6、评测队列。已经打好的标签和缓存留在磁盘上，没删。相关提醒已关闭。10 张卡全部空出来。另一个会话 2 天前开的 ER 评测队列（pid 3295845）没动。
+- **DiffUCO 不再复现**（用户 11-16）：直接用 CAM 论文表 1 那次的记录，导入为 `experiments/20260513_rbsmall_diffuco_cam_table1/`，训练曲线已同步到 wandb 项目 `yunyi-organization/SLVUL`。上面 §6.1 里“复现 + 多种子”的提议作废。
