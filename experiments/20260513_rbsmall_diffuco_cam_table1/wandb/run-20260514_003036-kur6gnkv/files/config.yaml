@@ -1,0 +1,130 @@
+N_anneal:
+    value: 1000
+N_equil:
+    value: 0
+N_warmup:
+    value: 0
+batch_size:
+    value: 4
+batches_per_step:
+    value: null
+beta:
+    value: 1.2
+bucket_sampler:
+    value: false
+buffer_size:
+    value: 40
+checkpoint:
+    value: null
+compile:
+    value: false
+data_precision:
+    value: fp32
+diffusion_schedule:
+    value: linear
+do_train:
+    value: false
+epochs:
+    value: 1000
+epsilon:
+    value: 1
+grad_clip:
+    value: 1
+gradient_accumulation_steps:
+    value: 1
+inference_schedule:
+    value: linear
+inner_loop_steps:
+    value: 1
+lambd:
+    value: 0.5
+log_file:
+    value: log.txt
+loss:
+    value: erdos
+lr:
+    value: 0.001
+lr_scheduler:
+    value: cosine-decay
+method:
+    value: DiffUCO
+mini_batch_size:
+    value: 1
+mis_decoding:
+    value: continuous
+model:
+    value: EncodeProcessDecode
+noise_energy:
+    value: annealing
+num_batches_per_epoch:
+    value: 128
+num_clips:
+    value: 1
+num_d:
+    value: 30
+num_h:
+    value: 64
+num_k:
+    value: 20
+num_kp:
+    value: 10
+num_l:
+    value: 8
+num_t:
+    value: 50
+num_tp:
+    value: 6
+num_workers:
+    value: 4
+optimizer:
+    value: RAdam
+patience:
+    value: 200
+problem:
+    value: mis
+repetition:
+    value: 1
+samples_per_epoch:
+    value: 4000
+save_dir:
+    value: /usr1/shengyuf/RiemannCO/mis_rb_small_diffuco/diffuco_annealing
+seed:
+    value: 0
+skip_decode:
+    value: false
+sparse_factor:
+    value: 50
+tau0:
+    value: 0.1
+tau1:
+    value: 0
+temp_schedule:
+    value: linear
+test_path:
+    value: /usr1/shengyuf/MIS/RB_small_test
+test_samples:
+    value: -1
+time_scale:
+    value: 1000
+train_path:
+    value: /usr1/shengyuf/MIS/RB_small_train
+train_samples:
+    value: -1
+two_opt_iterations:
+    value: 100
+use_activation_checkpoint:
+    value: false
+valid_path:
+    value: /usr1/shengyuf/MIS/RB_small_valid
+valid_samples:
+    value: 64
+value_head:
+    value: false
+wandb_entity:
+    value: null
+wandb_name:
+    value: mis_rb_small_diffuco
+wandb_run_name:
+    value: test_diffuco_annealing
+weight_decay:
+    value: 0.0001
