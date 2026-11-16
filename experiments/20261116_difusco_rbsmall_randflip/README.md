@@ -26,7 +26,7 @@ SL 一侧在 RB-small 上的第一次训练，和 CAM 论文那次 DiffUCO（`20
 
 | run | GPU | pid | 开跑（UTC） | 结束 |
 |---|---|---|---|---|
-| `20261116_difusco_rbsmall_randflip_s0`（wandb `rox3ivnr`） | 0 | 2646007 | 2026-11-16 00:36 | 跑着 |
+| `20261116_difusco_rbsmall_randflip_s0`（wandb `rox3ivnr`） | 0 | 2646007 | 2026-11-16 00:36 | 10:56，第 139 个 epoch 后早停 |
 
 - 11-16 02:10（UTC）检查：跑完 37 个 epoch（第 0–36 个），没有早停，没有报错。
   - 验证最好 19.27，在第 28 个 epoch（`best.pt` 文件时间 01:47，对得上）；之后第 30、36 个 epoch 是 19.19、19.20。
@@ -57,10 +57,15 @@ SL 一侧在 RB-small 上的第一次训练，和 CAM 论文那次 DiffUCO（`20
   - 第 106–123 个 epoch 在 19.42–19.67 之间，均值约 19.53，和第 82–105 个 epoch 差不多。
   - CPU 负载仍约 80，每个 epoch 约 7.5 分钟。
   - 最早在第 139 个 epoch 后早停，约 11:15（UTC）；跑满 200 个 epoch 约 18:45（UTC）。
+- 11-16 11:19（UTC）检查：**已早停**。第 139 个 epoch 跑完（10:56）后触发（连续 20 个 epoch 没超过最好值），共 140 个 epoch，用时约 10 小时 20 分钟（后半程被别的用户的 CPU 进程拖慢）。
+  - 验证最好 19.67，在第 119 个 epoch，`best.pt` 就是这一个（第 131 个 epoch 也是 19.67，但只有严格更高才覆盖，所以没换）。
+  - 第 120–139 个 epoch 在 19.47–19.67 之间。
+  - test 还没跑。
 
 ## 结果
 
 | run | 验证最好（epoch） | test | wandb |
 |---|---|---|---|
+| `20261116_difusco_rbsmall_randflip_s0` | 19.67（119） | 待测 | [rox3ivnr](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/rox3ivnr) |
 
 ## 结论
