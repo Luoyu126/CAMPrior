@@ -34,12 +34,12 @@ SL 只有一个精确标签，相当于只知道能量的一个最低点；UL �
 
 ## 状态
 
-还没有正式开跑。
+| run | GPU | 开始（UTC） | wandb |
+|---|---|---|---|
+| `20261116_difusco_rbsmall_heatflip_lam0p1_s0` | 0 | 2026-11-16 22:24 | [c2ph9w5g](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/c2ph9w5g) |
 
-- 11-16 22:06 UTC 按 λ ∈ {0, 0.1, 0.3, 1} 同时启动了 4 组，几分钟后停掉，因为还没和用户确认。
-- 22:15 UTC 单卡启动了 λ = 0.1，22:20 停掉：用户要求和 baseline 一样用 10 张卡（每卡 4 张图），而且有别人用卡时不跑。
-- 这几次的 wandb 记录和本地文件都已删除。
-- `launch.sh` 还是单卡写法，正式跑之前要改成 `accelerate launch --num_processes=10`、每卡 4 张图，和 DiffUCO 的原始命令一致。
+- 单卡、batch 40，和 randflip baseline 相同。用户 11-16 确认：DIFUSCO 用单卡即可，每步的图数和 DiffUCO 的多卡（10 × 4）一致就行。
+- 之前有两次启动又停掉（22:06 的 4 组 λ；22:15 的单卡 λ = 0.1），wandb 记录和本地文件都已删除。
 
 ## 待定
 
