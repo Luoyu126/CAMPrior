@@ -37,10 +37,13 @@ SL 只有一个精确标签，相当于只知道能量的一个最低点；UL �
 | run | GPU | 开始（UTC） | wandb |
 |---|---|---|---|
 | `20261116_difusco_rbsmall_heatflip_lam0p1_s0` | 0 | 2026-11-16 22:24 | [c2ph9w5g](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/c2ph9w5g) |
+| `20261116_difusco_rbsmall_heatflip_lam0_s0`（对照：均匀前向 + 重新加噪采样器） | 9 | 2026-11-16 22:26 | [d4i47yyi](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/d4i47yyi) |
 
 - 单卡、batch 40，和 randflip baseline 相同。用户 11-16 确认：DIFUSCO 用单卡即可，每步的图数和 DiffUCO 的多卡（10 × 4）一致就行。
 - 之前有两次启动又停掉（22:06 的 4 组 λ；22:15 的单卡 λ = 0.1），wandb 记录和本地文件都已删除。
 
-## 待定
+## 对照（用户 11-16 同意跑）
 
-- 对照：和 `20261116_difusco_rbsmall_randflip`（test 19.31）比时，除了前向，采样器也变了（原来是 D3PM 后验，这里是重新加噪）。要把两者分开，需要再跑一组 λ = 0 加重新加噪采样器。
+λ = 0 这组的训练和 randflip 完全相同（均匀前向，走原来的闭式加噪），只把验证和测试的采样器换成重新加噪。于是：
+- λ = 0.1 对 λ = 0：只差前向，看能量地形的作用；
+- λ = 0 对 randflip：只差采样器，看换采样器本身的影响。
