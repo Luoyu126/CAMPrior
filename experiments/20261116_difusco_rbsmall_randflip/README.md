@@ -1,0 +1,38 @@
+# 20261116_difusco_rbsmall_randflip：RB-[200-300] 上的 DIFUSCO（前向过程是随机翻转）
+
+## 目的
+
+SL 一侧在 RB-small 上的第一次训练，和 CAM 论文那次 DiffUCO（`20260513_diffuco_rbsmall_annealing`，验证最好 20.27，test 19.88）对照。先用中心配置跑一次，看 DIFUSCO 在修好标签后能到多少，再定调参网格。
+
+变体名 `randflip`：前向加噪是 D3PM 的均匀随机翻转，Q_t = (1−β_t)I + β_t/2·11ᵀ，β_t 从 1e-4 线性增加到 0.02，共 1000 步。
+
+## 配置
+
+- 启动命令全部写在 `launch.sh` 里，没有依赖代码默认值的超参。
+- 网络和 DiffUCO 相同：`EncodeProcessDecode`，8 层 × 64。
+- 训练：
+  - 每步 40 张图，单卡。DiffUCO 是每卡 4 张 × 10 卡，GraphNorm 按单张图归一化，所以两者等价。
+  - 一个 epoch 等于全部 4000 张训练图，即 100 步，和 DiffUCO 的 `samples_per_epoch 4000` 一样。
+  - AdamW，学习率 2e-4，weight decay 1e-4，cosine 衰减到 0，不做梯度裁剪，fp32。
+  - 最多 200 个 epoch，patience 20。
+  - 以上取自 Shengyu 的 `mis/mis_rb_small_difusco.sh`。和那份不同的只有每步张数：那份是 5 × 10 卡 = 50，这里取 40，跟 DiffUCO 对齐。
+- 推理和验证：cosine 时间表 50 步，每张图 20 个样本取最好。和 DiffUCO 相同。
+- 验证集：64 张，单卡正好 64 张。DiffUCO 用 10 卡，验证补齐到 70 张，这个差别记一下。
+- 代码：仓库 `develop` 分支，已包含 RB 标签对齐修复和训练时间步从 1..T 抽的修复（`cam/UPSTREAM.md` 第 39、40 条）。
+- 时间：每个 epoch 训练约 2 分钟，验证约 26 秒。跑满 200 个 epoch 约 8 卡时，早停会更短。
+- 启动：`bash experiments/20261116_difusco_rbsmall_randflip/launch.sh <gpu> <seed>`
+
+## 状态
+
+| run | GPU | pid | 开跑（UTC） | 结束 |
+|---|---|---|---|---|
+| `20261116_difusco_rbsmall_randflip_s0`（wandb `rox3ivnr`） | 0 | 2646007 | 2026-11-16 00:36 | 跑着 |
+
+- 第 0 个 epoch 的验证：17.89。
+
+## 结果
+
+| run | 验证最好（epoch） | test | wandb |
+|---|---|---|---|
+
+## 结论
