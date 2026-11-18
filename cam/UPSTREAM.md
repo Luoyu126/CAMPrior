@@ -209,6 +209,14 @@ shows only the items below).
     inference by: draw x0 ~ Bernoulli(predicted probs), run the same forward from x0 to the next step,
     so inference sees the training marginals. Tests: `tests/test_heated_forward.py`; diagnostic:
     `scripts/mis/heated_forward_curve.py`.
+43. `utils/bridge_paths.py`, `solvers/fm.py`, `main.py`, `scripts/mis/build_start_bank.py`: FM from an
+    arbitrary start distribution. `--fm_bank_train/--fm_bank_eval` give banks of start states (final
+    RLSA chain states, built by `build_start_bank.py`); training draws x0 from the bank instead of
+    Bernoulli(1/2) and uses the mixture path (x_t = x1 w.p. t, else x0), inference starts each chain from
+    its own bank state and takes the same Euler step as before. `--fm_bridge_lambda > 0` replaces the
+    mixture path by the bridge of a uniform-flip reference with rate lambda (closed form per node) and
+    the step by the Doob-transformed rate. Without these flags FM is unchanged. Tests:
+    `tests/test_bridge_paths.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
