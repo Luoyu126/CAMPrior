@@ -16,4 +16,10 @@
 
 ## 结果
 
-（待补）
+| | 值 |
+|---|---|
+| best.pt | 第 119 个 epoch，验证 37.97 |
+| test，D3PM 后验，seed 0 | 37.992 |
+| test，D3PM 后验，seed 1 | 37.992（平均恰好相同，但 620 张图的结果不同） |
+
+对照见 `experiments/20261118_fm_rblarge_mcmcstart/README.md` 末尾的表格（起点库 40.17，本地 KaMIS 42.70）。RB-large 这条线 11-18 停了，先回 RB-small 验证。
