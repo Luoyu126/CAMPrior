@@ -1,6 +1,7 @@
 from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
+from utils.label_sets import load_label_sets, choose
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -17,6 +18,30 @@ class DIFUSCO(SLSolver):
         self.sampler = getattr(args, 'difusco_sampler', 'posterior')
         self.heated = HeatedForward(self.diffusion.beta, getattr(args, 'heat_lambda', 0.0),
                                     getattr(args, 'heat_until', 0.5), args.beta)
+        # local addition (UPSTREAM.md item 44): several optimal labels per training graph
+        self.label_sets, self.label_choice = None, getattr(args, 'label_choice', 'first')
+        if getattr(args, 'label_set', None) and args.do_train:
+            self.label_sets = load_label_sets(args.label_set, args.train_path, args.train_samples)
+
+    def pick_labels(self, graph):
+        """One label per graph of the batch from its label set (UPSTREAM.md item 44), shape like graph.x."""
+        dev = graph.x.device
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist()
+        ptr = graph.ptr.tolist()
+        logp = None
+        if self.label_choice == 'nearest':
+            with torch.no_grad():
+                x_T = torch.bernoulli(torch.full_like(graph.x.float(), 0.5))
+                t_T = torch.full((graph.num_nodes,), float(self.num_tp), device=dev)
+                logp = torch.log_softmax(self.model(graph, x_T, t_T).float(), -1)
+        parts = []
+        for g, i in enumerate(idx):
+            s = self.label_sets[int(i)].to(dev)
+            assert s.shape[1] == ptr[g + 1] - ptr[g], 'label set does not match the graph size'
+            lp1 = logp[ptr[g]:ptr[g + 1], 1] if logp is not None else None
+            lp0 = logp[ptr[g]:ptr[g + 1], 0] if logp is not None else None
+            parts.append(choose(s, lp1, lp0, self.label_choice))
+        return torch.cat(parts).view_as(graph.x).to(graph.x.dtype)
     
     def categorical_posterior(self, target_t, t, x0_pred_prob, xt):
         """Sample from the categorical posterior for a given time step.
@@ -108,7 +133,7 @@ class DIFUSCO(SLSolver):
             solution_0 = graph.edge_attr
         else:
             time = time[graph.batch.cpu().numpy()]
-            solution_0 = graph.x
+            solution_0 = graph.x if self.label_sets is None else self.pick_labels(graph)
 
         if self.heated.heat_lambda == 0:
             solution_0_onehot = F.one_hot(solution_0.long(), num_classes=2).float()

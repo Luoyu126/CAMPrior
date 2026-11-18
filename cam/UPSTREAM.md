@@ -217,6 +217,13 @@ shows only the items below).
     mixture path by the bridge of a uniform-flip reference with rate lambda (closed form per node) and
     the step by the Doob-transformed rate. Without these flags FM is unchanged. Tests:
     `tests/test_bridge_paths.py`.
+44. `utils/label_sets.py`, `solvers/difusco.py`, `main.py`, `scripts/mis/build_solution_sets.py`:
+    several optimal labels per training graph. `build_solution_sets.py` keeps the distinct greedy-decoded
+    sets of the best size from many long RLSA chains (label first when it is as large). `--label_set F`
+    makes DIFUSCO training pick one label per graph and step with `--label_choice`: `first` (a
+    precomputed choice), `random`, or `nearest` (the set most likely under the model's prediction from
+    pure noise, a hindsight / hard-EM choice). Validation and test are unchanged. Without `--label_set`
+    DIFUSCO is unchanged. Tests: `tests/test_label_sets.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
