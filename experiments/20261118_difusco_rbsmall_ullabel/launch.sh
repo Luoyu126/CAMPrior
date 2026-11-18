@@ -6,17 +6,21 @@
 # Labels: data/rb_small_ullabels/train_diffuco.pt, the largest of 20 samples of the DiffUCO RB-small
 #   checkpoint (20260513_diffuco_rbsmall_annealing, test 19.88) on each training graph (mean 19.91,
 #   KaMIS labels 20.16); knowledge distillation from the unsupervised solver.
-# Usage: bash experiments/20261118_difusco_rbsmall_ullabel/launch.sh <gpus, e.g. 0,1> <diffuco> [seed]
+#   diffuco_k200: the largest of 200 samples (mean 20.08); diffuco_fill: diffuco_k200, and where it is
+#   below the KaMIS size the known optimal set nearest to it (scripts/mis/polish_labels.py --k 0 --pool).
+# Usage: bash experiments/20261118_difusco_rbsmall_ullabel/launch.sh <gpus, e.g. 0,1> <diffuco|diffuco_k200|diffuco_fill> [seed]
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
-GPUS=${1:?usage: launch.sh <gpus> <diffuco> [seed]}
-MODE=${2:?usage: launch.sh <gpus> <diffuco> [seed]}
+GPUS=${1:?usage: launch.sh <gpus> <diffuco|diffuco_k200|diffuco_fill> [seed]}
+MODE=${2:?usage: launch.sh <gpus> <diffuco|diffuco_k200|diffuco_fill> [seed]}
 SEED=${3:-0}
 SETS=/usr0/home/shengyuf/yunyi/data/rb_small_ullabels
 case "$MODE" in
     diffuco) LABEL=(--label_set "$SETS/train_diffuco.pt" --label_choice first) ;;
+    diffuco_k200) LABEL=(--label_set "$SETS/train_diffuco_k200.pt" --label_choice first) ;;
+    diffuco_fill) LABEL=(--label_set "$SETS/train_diffuco_k200_fill.pt" --label_choice first) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
 
