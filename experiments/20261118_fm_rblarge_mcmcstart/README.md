@@ -66,6 +66,7 @@ networkx 解析一张 RB-large 图要约 3 秒，不开缓存时 GPU 空等。
 |---|---|---|---|
 | `20261118_fm_rblarge_mcmcstart_lam0_s0` | flow matching | 0、1 | SLVUL |
 | `20261118_bm_rblarge_mcmcstart_lam0p5_s0` | bridge matching，λ = 0.5 | 2、3 | SLVUL |
+| `20261118_fm_rblarge_uniformstart_s0` | 对照：原 FM，均匀 Ber(1/2) 起点（`uniform.sh`，用户 11-18 03:00 要求；Shengyu 没在 RB-large 上跑过 FM） | 4、5 | SLVUL |
 
 - KaMIS 标签 01:12 打完：test 1000、valid 500、train 4000。图缓存 01:22 建好。
 - 起点库 01:30 建好（RLSA 1000 步，每张图 4 卡分片，总共 8 分钟），best-of-K（贪心解码后取最好）：
