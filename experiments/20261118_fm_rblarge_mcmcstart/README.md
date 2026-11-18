@@ -36,7 +36,7 @@
 
 - 数据：`/usr0/home/shengyuf/yunyi/data/rb_large_kamis/`。图是到 `/usr1/shengyuf/MIS/RB_large_*` 的软链接；标签由本地 KaMIS（redumis，每张图 60 秒，和 DIFUSCO 打 ER 标签的设定一致）在 11-17 夜里打的，在 `anno/` 下。
 - 起点库（`cam/scripts/mis/build_start_bank.py`）：RLSA 1000 步，τ0 = 0.01，d = 5，取每条链的末状态。训练图每张 16 个；验证（前 64 张）和测试（1000 张）每张 20 个，等于推理链数，每条链从自己的起点出发。
-- 训练：Shengyu 在 RB-large 上 FM 的配置。8 层 × 64，每步 40 张图（2 卡 × 20），AdamW，学习率 2e-4，200 个 epoch，不早停，每个 epoch 存权重，activation checkpoint，图缓存（`CAM_GRAPH_CACHE`）。
+- 训练：Shengyu 在 RB-large 上 FM 的配置。8 层 × 64（和我们之前跑的 DIFUSCO / DiffUCO 一致，用户 11-17 定；Shengyu 的 RB-large DIFUSCO / DiffUCO 脚本是 6 层），每步 40 张图（2 卡 × 20），AdamW，学习率 2e-4，200 个 epoch，不早停，每个 epoch 存权重，activation checkpoint，图缓存（`CAM_GRAPH_CACHE`）。
 - 推理：50 步（cosine 时间表）× 20 条链，贪心解码，取最好。
 - 流水线：`pipeline.sh`，依次等标签、建图缓存、建起点库、两组各 2 卡并行训练，再测 test。
 
@@ -52,10 +52,13 @@ networkx 解析一张 RB-large 图要约 3 秒，不开缓存时 GPU 空等。
 
 ## 评测要带的对照（之后补，不在这次流水线里）
 
-1. 只跑 RLSA，总时间等于“起点 + 网络推理”：网络必须比把时间都给 MCMC 更好。
-2. 起点库本身的最好解（起点库生成时已记录 best-of-K）。
-3. 均匀起点的 FM（原 `fm.py`），以及 Shengyu 的 Bernoulli(p = 标签密度) 起点。
+用户 11-17 定：主要和 RLSA、DIFUSCO 比。
+
+1. RLSA（采样基线）：总时间等于“起点 + 网络推理”，看网络是否比把时间都给 MCMC 更好；另附 RLSA 预算曲线（上表）。
+2. DIFUSCO：8 层 × 64，在同一份本地 KaMIS 标签的 RB-large 上训练，其余设置和本实验一致（每步 40 张图、200 个 epoch、不早停），测 D3PM 后验和 renoise 两种采样各 2 个 seed。我们还没在 RB-large 上跑过，需要单独开一组。
+3. 起点库本身的最好解（起点库生成时已记录 best-of-K）。
 4. KaMIS（本地标签）。
+5. 可选：均匀起点的 FM（原 `fm.py`），区分“换起点”和“换成 FM”各自的作用。
 
 ## 状态
 
