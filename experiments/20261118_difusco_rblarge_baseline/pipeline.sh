@@ -2,10 +2,10 @@
 # DIFUSCO baseline on RB-[800-1200] MIS for 20261118_fm_rblarge_mcmcstart (user go-ahead 11-17 night).
 # Same network and training budget as the FM / BM runs there: EncodeProcessDecode 8 x 64, 40 graphs per
 # step (2 GPUs x 20), AdamW 2e-4, 200 epochs, no early stop, a checkpoint per epoch, same local KaMIS labels.
-# Uniform forward, best.pt picked with the re-noising sampler (as 20261117_difusco_rbsmall_heatflip lam0).
+# Uniform forward, D3PM posterior sampler only (user 11-17): best.pt picked and tested with it.
 #   1. wait for the FM pipeline's graph cache (it waits for the KaMIS labels first);
 #   2. train on 2 idle GPUs (pool searched from GPU 9 down, the FM pipeline takes the low ones);
-#   3. test best.pt on the 1000 test graphs: {posterior, renoise} x seeds {0, 1}, 50 cosine steps x 20 chains.
+#   3. test best.pt on the 1000 test graphs: posterior sampler, seeds 0 and 1, 50 cosine steps x 20 chains.
 set -uo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"
@@ -43,7 +43,7 @@ G=($(idle_gpus 2)); log "train $RUN on GPUs ${G[*]}"
 cd "$REPO/cam"
 CUDA_VISIBLE_DEVICES=${G[0]},${G[1]} "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=2 \
     --main_process_port $((29800 + ${G[0]})) main.py $(args) --seed 0 --batch_size 20 --save_every_epoch \
-    --use_activation_checkpoint --difusco_sampler renoise --do_train --save_dir "$OUT" > "$OUT/train.log" 2>&1
+    --use_activation_checkpoint --difusco_sampler posterior --do_train --save_dir "$OUT" > "$OUT/train.log" 2>&1
 log "train exit $?"
 
 export WANDB_MODE=disabled   # tests stay off wandb, as the RB-small tests
@@ -53,7 +53,5 @@ tst() {   # gpu sampler seed
         --save_dir "$OUT" --log_file "$OUT/${tag}_result.txt" > "$OUT/$tag.log" 2>&1
     log "$tag exit $? $(grep 'Avg. size' "$OUT/${tag}_result.txt" 2>/dev/null)"
 }
-for s in 0 1; do
-    tst ${G[0]} posterior $s & tst ${G[1]} renoise $s & wait
-done
+tst ${G[0]} posterior 0 & tst ${G[1]} posterior 1 & wait
 log "all done"
