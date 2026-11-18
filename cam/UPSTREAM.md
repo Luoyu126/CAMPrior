@@ -224,6 +224,13 @@ shows only the items below).
     precomputed choice), `random`, or `nearest` (the set most likely under the model's prediction from
     pure noise, a hindsight / hard-EM choice). Validation and test are unchanged. Without `--label_set`
     DIFUSCO is unchanged. Tests: `tests/test_label_sets.py`.
+45. `utils/graph_weights.py`, `solvers/difusco.py`, `main.py`: per-graph weights of the DIFUSCO loss,
+    sum_i w_g(i) ce_i / sum_i w_g(i). `--graph_weight nsets` uses w = M^-p (M optimal sets of the graph in
+    `--graph_weight_sets`, p = `--graph_weight_power`); `--graph_weight ce` follows the hardness-weighted
+    curriculum of Zhang et al. (AAAI 2022, eq. 12): w = exp(z), z the standardized log of the graph's
+    cross-entropy relative to the running mean at the same noise level, averaged over its visits and
+    shared across processes. Logs `train/weight_ess_frac`. Without `--graph_weight` DIFUSCO is unchanged.
+    Tests: `tests/test_graph_weights.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

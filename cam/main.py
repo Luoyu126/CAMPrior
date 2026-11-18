@@ -70,6 +70,10 @@ def main():
     # local addition (UPSTREAM.md item 44): several optimal labels per training graph (DIFUSCO)
     parser.add_argument('--label_set', type=str, default=None, help='scripts/mis/build_solution_sets.py output')
     parser.add_argument('--label_choice', type=str, default='first', choices=['first', 'random', 'nearest'])
+    # local addition (UPSTREAM.md item 45): per-graph weights of the DIFUSCO loss
+    parser.add_argument('--graph_weight', type=str, default='none', choices=['none', 'nsets', 'ce'])
+    parser.add_argument('--graph_weight_sets', type=str, default=None, help='label set file giving the optimal-set counts')
+    parser.add_argument('--graph_weight_power', type=float, default=0.5, help="nsets: w = (number of optima)^-power")
     # local addition (UPSTREAM.md item 43): FM from an MCMC start bank (scripts/mis/build_start_bank.py)
     parser.add_argument('--fm_bank_train', type=str, default=None, help='start bank of the training graphs')
     parser.add_argument('--fm_bank_eval', type=str, default=None, help='start bank of the valid (training) or test graphs')

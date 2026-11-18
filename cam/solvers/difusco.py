@@ -2,6 +2,7 @@ from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
 from utils.label_sets import load_label_sets, choose
+from utils.graph_weights import GraphWeights, effective_sample_size
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -22,6 +23,13 @@ class DIFUSCO(SLSolver):
         self.label_sets, self.label_choice = None, getattr(args, 'label_choice', 'first')
         if getattr(args, 'label_set', None) and args.do_train:
             self.label_sets = load_label_sets(args.label_set, args.train_path, args.train_samples)
+        # local addition (UPSTREAM.md item 45): per-graph weights of the training loss
+        self.graph_weights = None
+        mode = getattr(args, 'graph_weight', 'none')
+        if mode != 'none' and args.do_train:
+            sets = load_label_sets(args.graph_weight_sets, args.train_path, args.train_samples)
+            self.graph_weights = GraphWeights(mode, len(sets), nsets=[s.shape[0] for s in sets],
+                                              power=args.graph_weight_power, num_tp=args.num_tp)
 
     def pick_labels(self, graph):
         """One label per graph of the batch from its label set (UPSTREAM.md item 44), shape like graph.x."""
@@ -149,9 +157,29 @@ class DIFUSCO(SLSolver):
         logits = self.model(graph, solution_t, time)
 
         # Compute loss
-        loss = self.loss_func(logits, target)
-        
-        return loss
+        if self.graph_weights is None:
+            return self.loss_func(logits, target)
+        return self.weighted_loss(graph, logits, target, time)
+
+    def weighted_loss(self, graph, logits, target, time):
+        """Per-graph weighted node cross-entropy (UPSTREAM.md item 45); equal weights give the node mean."""
+        assert self.solution_type == 'node'
+        ce = F.cross_entropy(logits, target, reduction='none')
+        idx = torch.as_tensor(graph.idx, device=ce.device).reshape(-1).long()
+        nb = idx.numel()
+        cnt = torch.zeros(nb, device=ce.device).index_add_(0, graph.batch, torch.ones_like(ce))
+        ce_g = torch.zeros(nb, device=ce.device).index_add_(0, graph.batch, ce.detach()) / cnt
+        t_g = torch.zeros(nb, device=ce.device).index_add_(0, graph.batch, time) / cnt
+        w = self.graph_weights.weights(idx).to(ce.device)[graph.batch]
+        # every process records the hardness of all graphs of the step, so the tables stay identical
+        acc = self.accelerator
+        allv = acc.gather(acc.pad_across_processes(torch.stack([idx.float(), t_g, ce_g], 1), dim=0, pad_index=-1))
+        allv = allv[allv[:, 0] >= 0]
+        self.graph_weights.update(allv[:, 0].long(), allv[:, 1], allv[:, 2])
+        if self.global_step % 100 == 0:   # effective sample size of the weights over all training graphs
+            wa = self.graph_weights.weights(torch.arange(self.graph_weights.num_graphs))
+            self.log({'train/weight_ess_frac': effective_sample_size(wa) / len(wa)})
+        return (w * ce).sum() / w.sum()
 
     @staticmethod
     def adjacency(graph):
