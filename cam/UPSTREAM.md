@@ -234,6 +234,8 @@ shows only the items below).
 46. `scripts/mis/ul_labels.py`: labels from a trained DiffUCO checkpoint. Runs its usual test sampler on
     the training graphs and keeps the largest greedy-decoded set of each graph among its `--num_k`
     samples, written as a one-set-per-graph label file for `--label_set F --label_choice first`.
+    `scripts/mis/polish_labels.py` brings such labels up to the KaMIS size where they fall short: RLSA
+    chains started at the label, else the nearest set of an optimal-set pool, else the KaMIS label.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
