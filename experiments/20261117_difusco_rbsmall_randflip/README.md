@@ -14,3 +14,17 @@
 | run | GPU | 开始（UTC） | wandb |
 |---|---|---|---|
 | `20261117_difusco_rbsmall_randflip_s0` | 9 | 2026-11-17 15:51 | [3zdeizwh](https://forge.coreweave.com/wandb/yunyi-organization/SLVUL/runs/3zdeizwh) |
+
+## 结果（test，1000 张图，推理种子 0 / 1）
+
+训练还没结束时，验证曲线已平（第 100 个 epoch 以后每 20 个 epoch 的均值在 19.54–19.58），用户 11-17 定先测当时的 best.pt：第 104 个 epoch（验证 19.67）。权重快照和结果在 run 目录的 `best_ep0104/`。脚本 `experiments/20261117_difusco_rbsmall_heatflip/test.sh <gpu> randflip <sampler> <seed> <快照目录>`。
+
+| 不早停，best.pt 来自 | D3PM 后验采样 | 重新加噪采样 |
+|---|---|---|
+| randflip（第 104 个 epoch，按 D3PM 后验选权重） | 19.303 / 19.303 | 19.597 / 19.612 |
+| λ = 0（第 179 个 epoch，按重新加噪选权重） | 19.358 / 19.349 | 19.658 / 19.647 |
+| λ = 0.1（第 164 个 epoch，按重新加噪选权重） | 19.292 / 19.276 | 19.587 / 19.580 |
+
+- randflip 和 λ = 0 的训练完全相同（均匀前向），只差验证时用哪种采样器挑权重、以及单卡还是 4 卡。两者差 0.04–0.06，可看作同一种训练在不同种子、不同挑选方式下的波动幅度。
+- λ = 0.1 和 randflip 差不多，比 λ = 0 低约 0.07，落在这个波动幅度附近。
+- 采样器的影响约 +0.30，三组一致。
