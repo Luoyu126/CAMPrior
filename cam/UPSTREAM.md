@@ -231,6 +231,9 @@ shows only the items below).
     cross-entropy relative to the running mean at the same noise level, averaged over its visits and
     shared across processes. Logs `train/weight_ess_frac`. Without `--graph_weight` DIFUSCO is unchanged.
     Tests: `tests/test_graph_weights.py`.
+46. `scripts/mis/ul_labels.py`: labels from a trained DiffUCO checkpoint. Runs its usual test sampler on
+    the training graphs and keeps the largest greedy-decoded set of each graph among its `--num_k`
+    samples, written as a one-set-per-graph label file for `--label_set F --label_choice first`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
