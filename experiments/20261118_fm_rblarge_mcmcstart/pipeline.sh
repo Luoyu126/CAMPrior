@@ -6,8 +6,8 @@
 #   3. RLSA start banks (scripts/mis/build_start_bank.py: 1000 steps, tau0 0.01, d 5, final chain states):
 #      train 16 starts per graph, valid (first 64) and test (1000) 20 starts per graph = num_k;
 #   4. two trainings in parallel, 2 GPUs each, 40 graphs per step, 200 epochs, no early stop:
-#      lam0   = discrete flow matching, mixture path        (--fm_bridge_lambda 0)
-#      lam0p5 = bridge matching, uniform-flip reference 0.5 (--fm_bridge_lambda 0.5)
+#      ..._fm_..._lam0   = discrete flow matching, mixture path        (--fm_bridge_lambda 0)
+#      ..._bm_..._lam0p5 = bridge matching, uniform-flip reference 0.5 (--fm_bridge_lambda 0.5)
 #   5. test best.pt of both on the 1000 test graphs (50 steps x 20 chains, each chain from its own start).
 # GPUs: each stage waits for idle GPUs (no compute process) among GPU_POOL.
 set -uo pipefail
@@ -62,8 +62,8 @@ bank() {   # split k limit
 log "banks done"
 
 # 4. training
-train() {   # tag lambda gpu gpu
-    local tag=$1 lam=$2; local gs=($3 $4); local run=${EXP_NAME}_${tag}_s0; local o="$OUT/$run"
+train() {   # run_name lambda gpu gpu
+    local run=$1 lam=$2; local gs=($3 $4); local o="$OUT/$run"
     mkdir -p "$o"; log "train $run on GPUs ${gs[*]}"
     CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${gs[*]}") "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=2 \
         --main_process_port $((29700 + ${gs[0]})) main.py \
@@ -84,7 +84,7 @@ train() {   # tag lambda gpu gpu
     log "test $run exit $? $(grep 'Avg. size' "$o/test_result.txt" 2>/dev/null)"
 }
 G=($(idle_gpus 4))
-train lam0 0 ${G[0]} ${G[1]} &
-train lam0p5 0.5 ${G[2]} ${G[3]} &
+train 20261118_fm_rblarge_mcmcstart_lam0_s0 0 ${G[0]} ${G[1]} &
+train 20261118_bm_rblarge_mcmcstart_lam0p5_s0 0.5 ${G[2]} ${G[3]} &
 wait
 log "all done"

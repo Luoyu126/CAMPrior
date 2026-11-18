@@ -62,4 +62,4 @@ networkx 解析一张 RB-large 图要约 3 秒，不开缓存时 GPU 空等。
 | run | 方法 | GPU | wandb |
 |---|---|---|---|
 | `20261118_fm_rblarge_mcmcstart_lam0_s0` | flow matching | 流水线自动分配 | — |
-| `20261118_fm_rblarge_mcmcstart_lam0p5_s0` | bridge matching，λ = 0.5 | 流水线自动分配 | — |
+| `20261118_bm_rblarge_mcmcstart_lam0p5_s0` | bridge matching，λ = 0.5 | 流水线自动分配 | — |
