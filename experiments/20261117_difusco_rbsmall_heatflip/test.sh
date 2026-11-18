@@ -8,15 +8,16 @@
 #   sampler  posterior -> D3PM posterior q(x_{t-1} | x_t, x0_hat) of the uniform kernel
 #            renoise   -> draw x0 from the prediction, run the training forward from it to the next step
 # wandb stays off. Output: <run dir>/test_<sampler>_seed<N>{.log,_result.txt}.
-# Usage: bash experiments/20261117_difusco_rbsmall_heatflip/test.sh <gpu> <ckpt> <sampler> [test_seed]
+# Usage: bash experiments/20261117_difusco_rbsmall_heatflip/test.sh <gpu> <ckpt> <sampler> [test_seed] [ckpt_dir]
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
-USAGE="usage: test.sh <gpu> <randflip|lam0|lam0p1> <posterior|renoise> [test_seed]"
+USAGE="usage: test.sh <gpu> <randflip|lam0|lam0p1> <posterior|renoise> [test_seed] [ckpt_dir]"
 GPU=${1:?$USAGE}
 CKPT=${2:?$USAGE}
 SAMPLER=${3:?$USAGE}
 TEST_SEED=${4:-0}
+CKPT_DIR=${5:-}   # optional: a directory holding a best.pt snapshot (e.g. taken mid-training); outputs go there
 
 case "$CKPT" in
     randflip) RUN=20261117_difusco_rbsmall_randflip_s0; EXP=20261117_difusco_rbsmall_randflip; LAM=0 ;;
@@ -32,6 +33,7 @@ export CUDA_VISIBLE_DEVICES=$GPU
 cam_require_gpu
 
 OUT="$REPO/runs/experiments/$EXP/$RUN"
+[ -n "$CKPT_DIR" ] && OUT="$(cd "$CKPT_DIR" && pwd)"
 test -f "$OUT/best.pt"
 DATA=/usr1/shengyuf/MIS
 TAG="test_${SAMPLER}_seed${TEST_SEED}"
