@@ -242,6 +242,8 @@ shows only the items below).
     proportional to exp(size / T) (T -> inf: uniform over the samples; T -> 0: the largest).
 48. `scripts/mis/sl_samples.py`: all samples of a trained DIFUSCO checkpoint per graph (e.g. with 400 test
     steps), to build labels for distilling many-step sampling into few-step sampling.
+49. `scripts/mis/label_learnability.py`: learnability of candidate labels under a reference DIFUSCO checkpoint,
+    D(y) = the mean over the trained time steps of the node cross-entropy of the model on q(x_t | y).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
