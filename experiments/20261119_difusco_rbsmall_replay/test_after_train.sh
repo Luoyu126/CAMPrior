@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wait for a fine-tuning run, then test its last checkpoint (epoch_0019.pt) on the 1000 RB_small_test graphs
+# Wait for a fine-tuning run, then test its last checkpoint on the 1000 RB_small_test graphs
 # ({posterior, renoise} x seeds {0, 1}, 50 cosine steps x 20 chains, best of 20; same protocol as
 # 20261118_difusco_rbsmall_ullabel) and, renoise seed 0, on the 53 graphs with improved labels
 # (data/rb_small_replay/train_near10). wandb off.
@@ -13,7 +13,7 @@ source "$REPO/cam/scripts/env.sh"
 export CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs
 OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; DATA=/usr1/shengyuf/MIS
 while kill -0 "$PID" 2>/dev/null; do sleep 60; done
-CK="${CKPT:-$OUT/epoch_0019.pt}"; test -f "$CK" || { echo "no $CK"; exit 1; }
+CK="${CKPT:-$(ls "$OUT"/epoch_0*.pt | sort | tail -1)}"; test -f "$CK" || { echo "no $CK"; exit 1; }
 tst() {   # test_path sampler seed tag
     (cd "$REPO/cam" && CUDA_VISIBLE_DEVICES=$GPU "$CAM_PYTHON" main.py \
         --train_path "$DATA/RB_small_train" --valid_path "$DATA/RB_small_valid" --test_path "$1" \
