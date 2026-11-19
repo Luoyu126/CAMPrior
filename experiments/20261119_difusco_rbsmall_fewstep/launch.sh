@@ -7,7 +7,11 @@
 #   sd_ft   the same labels, fine-tuned from that k200-label checkpoint (seed s), AdamW 5e-5 cosine, 30 epochs.
 #   tp50_k200 / tp50_kamis   train with 50 diffusion steps (cosine noise schedule) so that each of the 50 test steps is a
 #           trained transition (linear inference schedule: steps 50, 49, ..., 1); k200 DiffUCO labels / KaMIS labels.
-# Usage: bash experiments/20261119_difusco_rbsmall_fewstep/launch.sh <gpu> <sd|sd_ft|tp50_k200|tp50_kamis> [seed]
+#   tp50_k200_long  tp50_k200 for 400 epochs.   tp50_fill  tp50 with the k200 labels filled up to the KaMIS size.
+#   tp50_near / tp50_tilt  tp50 on all DiffUCO samples (data/rb_small_ullabels/train_diffuco_all200*.pt): among the
+#           largest ones, the one most likely under the model (nearest) / one drawn with weight exp(size / 0.2) (tilted).
+#   tp100_k200  100 diffusion steps (cosine noise), tested with 50 linear steps (every second trained transition).
+# Usage: bash experiments/20261119_difusco_rbsmall_fewstep/launch.sh <gpu> <sd|sd_ft|tp50_k200|tp50_kamis|tp50_k200_long|tp50_fill|tp50_near|tp50_tilt|tp100_k200> [seed]
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
@@ -20,6 +24,12 @@ case "$MODE" in
            INIT=(--checkpoint "$REPO/runs/experiments/20261118_difusco_rbsmall_ullabel/20261118_difusco_rbsmall_ullabel_diffuco_k200_s$SEED/best.pt") ;;
     tp50_k200) LABEL=(--label_set "$SETS/train_diffuco_k200.pt" --label_choice first); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear ;;
     tp50_kamis) LABEL=(); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear ;;
+    tp50_k200_long) LABEL=(--label_set "$SETS/train_diffuco_k200.pt" --label_choice first); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear
+           OPT=(--lr 0.0002 --epochs 400) ;;
+    tp50_fill) LABEL=(--label_set "$SETS/train_diffuco_k200_fill.pt" --label_choice first); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear ;;
+    tp50_near) LABEL=(--label_set "$SETS/train_diffuco_all200_top.pt" --label_choice nearest); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear ;;
+    tp50_tilt) LABEL=(--label_set "$SETS/train_diffuco_all200_sets.pt" --label_choice tilted --label_temp 0.2); TP=(--num_tp 50 --diffusion_schedule cosine); INF=linear ;;
+    tp100_k200) LABEL=(--label_set "$SETS/train_diffuco_k200.pt" --label_choice first); TP=(--num_tp 100 --diffusion_schedule cosine); INF=linear ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh

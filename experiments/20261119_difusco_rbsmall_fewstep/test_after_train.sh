@@ -9,7 +9,7 @@ EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
 RUN=$1; PID=$2; G=($3 $4)
-TPA="--num_tp 1000 --diffusion_schedule linear"; case "$RUN" in *tp50*) TPA="--num_tp 50 --diffusion_schedule cosine --inference_schedule linear" ;; *) TPA="$TPA --inference_schedule cosine" ;; esac
+TPA="--num_tp 1000 --diffusion_schedule linear"; case "$RUN" in *tp100*) TPA="--num_tp 100 --diffusion_schedule cosine --inference_schedule linear" ;; *tp50*) TPA="--num_tp 50 --diffusion_schedule cosine --inference_schedule linear" ;; *) TPA="$TPA --inference_schedule cosine" ;; esac
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 source "$REPO/cam/scripts/env.sh"   # CAM_WANDB unset: wandb disabled
 export CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs
