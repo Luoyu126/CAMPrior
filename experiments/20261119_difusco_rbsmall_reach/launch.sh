@@ -11,6 +11,8 @@
 #   pS_dselM{1,4,16}  probe-selected DiffUCO labels: among each graph's largest DiffUCO samples (train_diffuco_all200.pt)
 #              the M most predictable by a cross-fitted one-step probe (cam/scripts/mis/probe_select.py), one drawn
 #              uniformly per step; pS_dselbot4 the 4 least predictable (control); pS_dtop all of them (control).
+#   qR_dNall / qR_dNfpsM  diverse DiffUCO labels (cam/scripts/mis/diverse_labels.py): all unique largest of N DiffUCO
+#              samples per graph, or M of them by farthest-point sampling in Hamming distance; _long: 400 epochs.
 #   *_ft       fine-tune the round-R student (seed s) instead of training from scratch (AdamW 5e-5, 30 epochs)
 # Usage: bash experiments/20261119_difusco_rbsmall_reach/launch.sh <gpu> <rR_self|rR_union|rR_toprand>[_ft] [seed] [init ckpt for _ft]
 set -euo pipefail
@@ -26,6 +28,9 @@ case "$KIND" in
     toprand) LABEL=(--label_set "$L/${R}_top.pt" --label_choice random) ;;
     dselM1|dselM4|dselM16|dselbot4) P=/usr0/home/shengyuf/yunyi/data/rb_small_probe/dsel
         LABEL=(--label_set "${P}_${KIND#dsel}.pt" --label_choice random) ;;
+    d[0-9]*all|d[0-9]*fps[0-9]*|d[0-9]*all_long) K=${KIND%_long}; F=${K/all/_all}; F=${F/fps/_fps}
+        LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_div/$F.pt" --label_choice random)
+        [[ "$KIND" == *_long ]] && OPT=(--lr 0.0002 --epochs 400) ;;
     dtop) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_ullabels/train_diffuco_all200_top.pt --label_choice random) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
