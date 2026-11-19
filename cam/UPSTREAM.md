@@ -236,6 +236,10 @@ shows only the items below).
     samples, written as a one-set-per-graph label file for `--label_set F --label_choice first`.
     `scripts/mis/polish_labels.py` brings such labels up to the KaMIS size where they fall short: RLSA
     chains started at the label, else the nearest set of an optimal-set pool, else the KaMIS label.
+47. `utils/label_sets.py`, `solvers/difusco.py`, `main.py`, `scripts/mis/ul_samples.py`: distillation of an
+    unsupervised solver's sample distribution. `ul_samples.py` keeps all samples of a DiffUCO checkpoint per
+    graph; `--label_choice tilted --label_temp T` draws, each training step, one stored set with probability
+    proportional to exp(size / T) (T -> inf: uniform over the samples; T -> 0: the largest).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
