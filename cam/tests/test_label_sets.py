@@ -36,3 +36,16 @@ if __name__ == '__main__':
     for name, f in list(globals().items()):
         if name.startswith('test_'):
             f(); print('ok', name)
+
+
+def test_tilted_choice():
+    from utils.label_sets import choose
+    sets = torch.tensor([[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 0]], dtype=torch.uint8)
+    torch.manual_seed(0)
+    assert all(choose(sets, how='tilted', temp=1e-3).sum() == 3 for _ in range(20))
+    n = 4000
+    sizes = torch.stack([choose(sets, how='tilted', temp=1e6).sum() for _ in range(n)]).float()
+    assert abs(sizes.mean().item() - 2.25) < 0.05          # uniform over the four rows
+    sizes = torch.stack([choose(sets, how='tilted', temp=1.0).sum() for _ in range(n)]).float()
+    p = torch.tensor([1.0, 2.718281828, 2 * 7.389056099]); p = p / p.sum()
+    assert abs(sizes.mean().item() - (p * torch.tensor([1., 2., 3.])).sum().item()) < 0.05

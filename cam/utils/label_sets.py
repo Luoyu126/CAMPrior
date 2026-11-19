@@ -9,6 +9,11 @@ label of that graph:
              under the model's prediction from pure noise (t = T), then argmax over m. A hindsight /
              hard-EM choice over labels (Li, Chen & Koltun 2018, sec. 4.2, eq. 3 take the min over
              outputs instead), which lets the model settle on choices it can learn consistently.
+    tilted   a random set drawn with probability proportional to exp(|s_m| / temp) (--label_temp), the
+             size-tilted distribution of the stored sets. With sampled solutions stored with repeats
+             (e.g. all samples of an unsupervised solver) this is energy-weighted distillation of that
+             solver's distribution (Neural Diving, Nair et al. 2020, sec. 6.1, eq. 9-11); temp -> inf is
+             'random', temp -> 0 picks the largest.
 """
 import glob
 import os
@@ -25,10 +30,14 @@ def load_label_sets(path, data_dir, num_samples=None):
     return sets['sets']
 
 
-def choose(sets, logp1=None, logp0=None, how='first'):
+def choose(sets, logp1=None, logp0=None, how='first', temp=1.0):
     """Pick one row of sets (M, n). logp1 / logp0: (n,) log-probabilities of 1 / 0 (for 'nearest')."""
     if how == 'first' or sets.shape[0] == 1:
         return sets[0]
+    if how == 'tilted':
+        size = sets.float().sum(1)
+        w = torch.softmax((size - size.max()) / temp, 0)
+        return sets[torch.multinomial(w, 1).item()]
     if how == 'random':
         return sets[torch.randint(sets.shape[0], (1,)).item()]
     if how == 'nearest':
