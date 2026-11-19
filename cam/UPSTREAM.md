@@ -240,6 +240,8 @@ shows only the items below).
     unsupervised solver's sample distribution. `ul_samples.py` keeps all samples of a DiffUCO checkpoint per
     graph; `--label_choice tilted --label_temp T` draws, each training step, one stored set with probability
     proportional to exp(size / T) (T -> inf: uniform over the samples; T -> 0: the largest).
+48. `scripts/mis/sl_samples.py`: all samples of a trained DIFUSCO checkpoint per graph (e.g. with 400 test
+    steps), to build labels for distilling many-step sampling into few-step sampling.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
