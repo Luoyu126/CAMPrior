@@ -244,6 +244,8 @@ shows only the items below).
     steps), to build labels for distilling many-step sampling into few-step sampling.
 49. `scripts/mis/label_learnability.py`: learnability of candidate labels under a reference DIFUSCO checkpoint,
     D(y) = the mean over the trained time steps of the node cross-entropy of the model on q(x_t | y).
+50. `scripts/mis/reach_labels.py`: labels from a DIFUSCO student's own samples at the test step budget
+    (`sl_samples.py` output): the medoid of each graph's largest samples, and its union with a reference label.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
