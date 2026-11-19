@@ -246,6 +246,11 @@ shows only the items below).
     D(y) = the mean over the trained time steps of the node cross-entropy of the model on q(x_t | y).
 50. `scripts/mis/reach_labels.py`: labels from a DIFUSCO student's own samples at the test step budget
     (`sl_samples.py` output): the medoid of each graph's largest samples, and its union with a reference label.
+51. `scripts/mis/label_probe.py`: dataset-level learnability probe of a label set: a fresh network trained to
+    predict the labels in one step from an uninformative input on part of the training graphs; held-out
+    cross-entropy and greedy size on the rest.
+52. `scripts/mis/probe_select.py`: per training graph, the M most predictable of the candidate largest sets under a
+    two-fold cross-fitted one-step probe trained on reference labels; written for `--label_choice random`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
