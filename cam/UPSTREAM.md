@@ -251,6 +251,8 @@ shows only the items below).
     cross-entropy and greedy size on the rest.
 52. `scripts/mis/probe_select.py`: per training graph, the M most predictable of the candidate largest sets under a
     two-fold cross-fitted one-step probe trained on reference labels; written for `--label_choice random`.
+53. `scripts/mis/diverse_labels.py`: per training graph, all unique largest samples of a solver, or M of them chosen
+    by farthest-point sampling in Hamming distance, for `--label_choice random`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
