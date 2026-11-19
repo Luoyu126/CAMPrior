@@ -21,6 +21,7 @@ class DIFUSCO(SLSolver):
                                     getattr(args, 'heat_until', 0.5), args.beta)
         # local addition (UPSTREAM.md item 44): several optimal labels per training graph
         self.label_sets, self.label_choice = None, getattr(args, 'label_choice', 'first')
+        self.label_temp = getattr(args, 'label_temp', 1.0)
         if getattr(args, 'label_set', None) and args.do_train:
             self.label_sets = load_label_sets(args.label_set, args.train_path, args.train_samples)
         # local addition (UPSTREAM.md item 45): per-graph weights of the training loss
@@ -48,7 +49,7 @@ class DIFUSCO(SLSolver):
             assert s.shape[1] == ptr[g + 1] - ptr[g], 'label set does not match the graph size'
             lp1 = logp[ptr[g]:ptr[g + 1], 1] if logp is not None else None
             lp0 = logp[ptr[g]:ptr[g + 1], 0] if logp is not None else None
-            parts.append(choose(s, lp1, lp0, self.label_choice))
+            parts.append(choose(s, lp1, lp0, self.label_choice, self.label_temp))
         return torch.cat(parts).view_as(graph.x).to(graph.x.dtype)
     
     def categorical_posterior(self, target_t, t, x0_pred_prob, xt):

@@ -69,7 +69,8 @@ def main():
     parser.add_argument('--difusco_sampler', type=str, default='posterior', choices=['posterior', 'renoise'])
     # local addition (UPSTREAM.md item 44): several optimal labels per training graph (DIFUSCO)
     parser.add_argument('--label_set', type=str, default=None, help='scripts/mis/build_solution_sets.py output')
-    parser.add_argument('--label_choice', type=str, default='first', choices=['first', 'random', 'nearest'])
+    parser.add_argument('--label_choice', type=str, default='first', choices=['first', 'random', 'nearest', 'tilted'])
+    parser.add_argument('--label_temp', type=float, default=1.0, help="temperature of --label_choice tilted (in set-size units)")
     # local addition (UPSTREAM.md item 45): per-graph weights of the DIFUSCO loss
     parser.add_argument('--graph_weight', type=str, default='none', choices=['none', 'nsets', 'ce'])
     parser.add_argument('--graph_weight_sets', type=str, default=None, help='label set file giving the optimal-set counts')
