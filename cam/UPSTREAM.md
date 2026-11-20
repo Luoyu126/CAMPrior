@@ -253,6 +253,9 @@ shows only the items below).
     two-fold cross-fitted one-step probe trained on reference labels; written for `--label_choice random`.
 53. `scripts/mis/diverse_labels.py`: per training graph, all unique largest samples of a solver, or M of them chosen
     by farthest-point sampling in Hamming distance, for `--label_choice random`.
+54. `scripts/mis/typical_labels.py`: learnability-thresholded labels: per training graph, the largest size s* whose
+    typicality (fraction of a few-step sampler's samples of size >= s*) is at least tau, and the sampler's own
+    samples of size >= s* with their multiplicities, for `--label_choice random`.
 56. `--label_choice soft` (`utils/label_sets.py` `posterior_mean`, `solvers/difusco.py` `soft_targets`): draw a set
     of the graph's label set, noise it to x_t, and train on the posterior mean over the whole set,
     E[x_0 | x_t] = sum_m w_m s_m with w_m proportional to q(x_t | s_m), as a soft cross-entropy target. Same
