@@ -256,6 +256,9 @@ shows only the items below).
 54. `scripts/mis/typical_labels.py`: learnability-thresholded labels: per training graph, the largest size s* whose
     typicality (fraction of a few-step sampler's samples of size >= s*) is at least tau, and the sampler's own
     samples of size >= s* with their multiplicities, for `--label_choice random`.
+55. `scripts/mis/strong_labels.py`: labels from a stronger solver filtered by learnability: the largest sets of
+    {few-step sampler samples} u {stronger solver's solutions}, the K nearest (Hamming) to the sampler's samples,
+    thinned to M by farthest-point sampling; control: farthest-point M of all of them.
 56. `--label_choice soft` (`utils/label_sets.py` `posterior_mean`, `solvers/difusco.py` `soft_targets`): draw a set
     of the graph's label set, noise it to x_t, and train on the posterior mean over the whole set,
     E[x_0 | x_t] = sum_m w_m s_m with w_m proportional to q(x_t | s_m), as a soft cross-entropy target. Same
