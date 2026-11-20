@@ -253,6 +253,10 @@ shows only the items below).
     two-fold cross-fitted one-step probe trained on reference labels; written for `--label_choice random`.
 53. `scripts/mis/diverse_labels.py`: per training graph, all unique largest samples of a solver, or M of them chosen
     by farthest-point sampling in Hamming distance, for `--label_choice random`.
+56. `--label_choice soft` (`utils/label_sets.py` `posterior_mean`, `solvers/difusco.py` `soft_targets`): draw a set
+    of the graph's label set, noise it to x_t, and train on the posterior mean over the whole set,
+    E[x_0 | x_t] = sum_m w_m s_m with w_m proportional to q(x_t | s_m), as a soft cross-entropy target. Same
+    minimiser as `random`, lower-variance targets (the per-graph exact Stable Target Field, arXiv 2302.00670).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

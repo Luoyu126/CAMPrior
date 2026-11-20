@@ -49,3 +49,17 @@ def test_tilted_choice():
     sizes = torch.stack([choose(sets, how='tilted', temp=1.0).sum() for _ in range(n)]).float()
     p = torch.tensor([1.0, 2.718281828, 2 * 7.389056099]); p = p / p.sum()
     assert abs(sizes.mean().item() - (p * torch.tensor([1., 2., 3.])).sum().item()) < 0.05
+
+
+def test_posterior_mean():
+    from utils.label_sets import posterior_mean
+    torch.manual_seed(0)
+    Qb = torch.tensor([[0.8, 0.2], [0.3, 0.7]], dtype=torch.float64)
+    xt = torch.tensor([1, 0, 1, 1, 0])
+    got = posterior_mean(SETS, xt, Qb)
+    lik = torch.tensor([float(torch.prod(Qb[r.long(), xt])) for r in SETS], dtype=torch.float64)   # brute force q(x_t | s_m)
+    want = (lik / lik.sum()) @ SETS.double()
+    assert torch.allclose(got, want, atol=1e-9)
+    # no noise: the posterior puts all mass on the set equal to x_t
+    assert torch.allclose(posterior_mean(SETS, SETS[1], torch.eye(2, dtype=torch.float64).clamp(min=1e-12)),
+                          SETS[1].double(), atol=1e-6)

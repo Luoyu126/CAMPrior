@@ -1,7 +1,7 @@
 from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
-from utils.label_sets import load_label_sets, choose
+from utils.label_sets import load_label_sets, choose, posterior_mean
 from utils.graph_weights import GraphWeights, effective_sample_size
 import torch
 from torch import nn
@@ -49,7 +49,8 @@ class DIFUSCO(SLSolver):
             assert s.shape[1] == ptr[g + 1] - ptr[g], 'label set does not match the graph size'
             lp1 = logp[ptr[g]:ptr[g + 1], 1] if logp is not None else None
             lp0 = logp[ptr[g]:ptr[g + 1], 0] if logp is not None else None
-            parts.append(choose(s, lp1, lp0, self.label_choice, self.label_temp))
+            how = 'random' if self.label_choice == 'soft' else self.label_choice
+            parts.append(choose(s, lp1, lp0, how, self.label_temp))
         return torch.cat(parts).view_as(graph.x).to(graph.x.dtype)
     
     def categorical_posterior(self, target_t, t, x0_pred_prob, xt):
@@ -152,15 +153,32 @@ class DIFUSCO(SLSolver):
             A = self.adjacency(graph)
             t_nodes = torch.from_numpy(time).long().to(solution_0.device)
             solution_t = self.heated.sample(A, graph.b, solution_0.float().view(-1, 1), t_nodes)
+        soft = None
+        if self.label_sets is not None and self.label_choice == 'soft':
+            soft = self.soft_targets(graph, solution_t, time)
         time = torch.from_numpy(time).float().to(self.accelerator.device)
         target = solution_0.long().squeeze(1)          
         
         logits = self.model(graph, solution_t, time)
+        if soft is not None:   # UPSTREAM.md item 56: posterior mean over the label set as the target
+            assert self.graph_weights is None
+            lp = torch.log_softmax(logits.float(), -1)
+            return -(soft * lp[:, 1] + (1 - soft) * lp[:, 0]).mean()
 
         # Compute loss
         if self.graph_weights is None:
             return self.loss_func(logits, target)
         return self.weighted_loss(graph, logits, target, time)
+
+    def soft_targets(self, graph, solution_t, time):
+        """Per node E[x_0 | x_t] over the graph's label set (UPSTREAM.md item 56); time: per-node numpy t."""
+        dev = solution_t.device
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
+        xt = solution_t.view(-1); out = []
+        for g, i in enumerate(idx):
+            Qb = torch.from_numpy(self.diffusion.Q_bar[int(time[ptr[g]])]).double().to(dev)
+            out.append(posterior_mean(self.label_sets[int(i)].to(dev), xt[ptr[g]:ptr[g + 1]], Qb).float())
+        return torch.cat(out)
 
     def weighted_loss(self, graph, logits, target, time):
         """Per-graph weighted node cross-entropy (UPSTREAM.md item 45); equal weights give the node mean."""
