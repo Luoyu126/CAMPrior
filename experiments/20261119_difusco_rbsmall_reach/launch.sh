@@ -34,6 +34,9 @@ case "$KIND" in
     d[0-9]*all|d[0-9]*fps[0-9]*|d[0-9]*all_long) K=${KIND%_long}; F=${K/all/_all}; F=${F/fps/_fps}
         LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_div/$F.pt" --label_choice random)
         [[ "$KIND" == *_long ]] && OPT=(--lr 0.0002 --epochs 400) ;;
+    t1000tau*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_typ/t1000_tau${KIND#t1000tau}.pt" --label_choice random) ;;
+    s1000*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_strong/s1000_${KIND#s1000}.pt" --label_choice random) ;;
+    c1far*|c1near*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_cov/c1_${KIND#c1}.pt" --label_choice random) ;;
     dtop) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_ullabels/train_diffuco_all200_top.pt --label_choice random) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
