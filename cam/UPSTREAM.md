@@ -259,6 +259,9 @@ shows only the items below).
 55. `scripts/mis/strong_labels.py`: labels from a stronger solver filtered by learnability: the largest sets of
     {few-step sampler samples} u {stronger solver's solutions}, the K nearest (Hamming) to the sampler's samples,
     thinned to M by farthest-point sampling; control: farthest-point M of all of them.
+57. `scripts/mis/coverage_labels.py`: labels a trained student has not learned yet: of the sampler's largest
+    samples, the K farthest (Hamming) from the student's own samples on the training graphs, thinned to M by
+    farthest-point sampling; control: the K nearest.
 56. `--label_choice soft` (`utils/label_sets.py` `posterior_mean`, `solvers/difusco.py` `soft_targets`): draw a set
     of the graph's label set, noise it to x_t, and train on the posterior mean over the whole set,
     E[x_0 | x_t] = sum_m w_m s_m with w_m proportional to q(x_t | s_m), as a soft cross-entropy target. Same
