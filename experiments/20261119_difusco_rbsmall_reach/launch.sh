@@ -13,7 +13,7 @@
 #              uniformly per step; pS_dselbot4 the 4 least predictable (control); pS_dtop all of them (control).
 #   qR_dNall / qR_dNfpsM  diverse DiffUCO labels (cam/scripts/mis/diverse_labels.py): all unique largest of N DiffUCO
 #              samples per graph, or M of them by farthest-point sampling in Hamming distance; _long: 400 epochs.
-#   *_long     400 epochs instead of 200 (any label mode)
+#   *_long     400 epochs instead of 200 (any label mode); *_eN: N epochs
 #   *_soft     the same label set, but the target is the posterior mean over the set given x_t (--label_choice soft,
 #              cam/utils/label_sets.py posterior_mean): same optimum as random, lower-variance targets
 #   *_ft       fine-tune the round-R student (seed s) instead of training from scratch (AdamW 5e-5, 30 epochs)
@@ -26,6 +26,7 @@ L=/usr0/home/shengyuf/yunyi/data/rb_small_reach
 R=${MODE%%_*}; KIND=${MODE#*_}; KIND=${KIND%_ft}
 SOFT=0; if [[ "$KIND" == *_soft ]]; then SOFT=1; KIND=${KIND%_soft}; fi
 LONG=0; if [[ "$KIND" == *_long ]]; then LONG=1; KIND=${KIND%_long}; fi
+EP=200; if [[ "$KIND" =~ _e([0-9]+)$ ]]; then EP=${BASH_REMATCH[1]}; KIND=${KIND%_e*}; fi
 OPT=(--lr 0.0002 --epochs 200); INIT=()
 case "$KIND" in
     self) LABEL=(--label_set "$L/${R}_self.pt" --label_choice first) ;;
@@ -43,6 +44,7 @@ case "$KIND" in
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
 if [[ $LONG == 1 ]]; then OPT=(--lr 0.0002 --epochs 400); fi
+if [[ $EP != 200 ]]; then OPT=(--lr 0.0002 --epochs $EP); fi
 if [[ $SOFT == 1 ]]; then LABEL=("${LABEL[@]/random/soft}"); fi
 if [[ "$MODE" == *_ft ]]; then OPT=(--lr 0.00005 --epochs 30); INIT=(--checkpoint "${INITCK:?_ft needs an init checkpoint}"); fi
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
