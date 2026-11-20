@@ -13,6 +13,8 @@
 #              uniformly per step; pS_dselbot4 the 4 least predictable (control); pS_dtop all of them (control).
 #   qR_dNall / qR_dNfpsM  diverse DiffUCO labels (cam/scripts/mis/diverse_labels.py): all unique largest of N DiffUCO
 #              samples per graph, or M of them by farthest-point sampling in Hamming distance; _long: 400 epochs.
+#   *_soft     the same label set, but the target is the posterior mean over the set given x_t (--label_choice soft,
+#              cam/utils/label_sets.py posterior_mean): same optimum as random, lower-variance targets
 #   *_ft       fine-tune the round-R student (seed s) instead of training from scratch (AdamW 5e-5, 30 epochs)
 # Usage: bash experiments/20261119_difusco_rbsmall_reach/launch.sh <gpu> <rR_self|rR_union|rR_toprand>[_ft] [seed] [init ckpt for _ft]
 set -euo pipefail
@@ -21,6 +23,7 @@ REPO="$(cd "$EXP_DIR/../.." && pwd)"
 GPU=$1; MODE=$2; SEED=${3:-0}; INITCK=${4:-}
 L=/usr0/home/shengyuf/yunyi/data/rb_small_reach
 R=${MODE%%_*}; KIND=${MODE#*_}; KIND=${KIND%_ft}
+SOFT=0; if [[ "$KIND" == *_soft ]]; then SOFT=1; KIND=${KIND%_soft}; fi
 OPT=(--lr 0.0002 --epochs 200); INIT=()
 case "$KIND" in
     self) LABEL=(--label_set "$L/${R}_self.pt" --label_choice first) ;;
@@ -34,6 +37,7 @@ case "$KIND" in
     dtop) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_ullabels/train_diffuco_all200_top.pt --label_choice random) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
+if [[ $SOFT == 1 ]]; then LABEL=("${LABEL[@]/random/soft}"); fi
 if [[ "$MODE" == *_ft ]]; then OPT=(--lr 0.00005 --epochs 30); INIT=(--checkpoint "${INITCK:?_ft needs an init checkpoint}"); fi
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 export CAM_WANDB=1
