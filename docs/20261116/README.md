@@ -32,3 +32,7 @@ CAMPrior 做的事是：把一个好的先验（RLSA）当作参考，训练出�
 3. 用能量（比如反向 RLSA）来定义前向过程、再学反向，有没有人做过？
 
 文献综述见 `lit_review.md`。原文（PDF 和抽出的文本）放在 `papers/`，不进 git。
+
+## 11-20 更新
+
+DIFUSCO 当前最好方法（DiffUCO 多标签 + 后验均值软目标，与 DiffUCO 相近：19.890 对 19.880）的完整 formulation 与结果：`difusco_sota_soft_labels.md`。
