@@ -266,6 +266,10 @@ shows only the items below).
     of the graph's label set, noise it to x_t, and train on the posterior mean over the whole set,
     E[x_0 | x_t] = sum_m w_m s_m with w_m proportional to q(x_t | s_m), as a soft cross-entropy target. Same
     minimiser as `random`, lower-variance targets (the per-graph exact Stable Target Field, arXiv 2302.00670).
+58. `scripts/mis/kamis_multi.py`: many KaMIS labels per graph (redumis with K seeds; distinct sets of the best
+    size, plus the existing label when as large), in the label-set format for `random` / `soft`.
+    `scripts/mis/match_label_counts.py`: per graph, every source keeps a random subset of as many sets as the
+    smallest source has, so source comparisons are not confounded by the number of labels.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
