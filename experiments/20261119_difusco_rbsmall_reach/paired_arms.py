@@ -1,12 +1,13 @@
 """Paired per-graph comparison of two DIFUSCO settings X and Y (each: several runs x renoise test seeds).
 Per graph: mean size over Y's runs minus mean over X's; graph-level bootstrap CI of the mean difference.
-    python paired_arms.py 'X_RUN_GLOB' 'Y_RUN_GLOB'
+    python paired_arms.py 'X_RUN_GLOB' 'Y_RUN_GLOB' [renoise|posterior]
 """
 import sys, glob, csv, numpy as np
+SAMPLER = sys.argv[3] if len(sys.argv) > 3 else 'renoise'
 def arm(g):
     v, files = [], None
     for r in sorted(glob.glob(g)):
-        for f in sorted(glob.glob(r + '/test_renoise_seed*_result.txt.per_graph.csv')):
+        for f in sorted(glob.glob(r + f'/test_{SAMPLER}_seed*_result.txt.per_graph.csv')):
             rows = sorted(csv.DictReader(open(f)), key=lambda x: x['file'])
             ff = [x['file'] for x in rows]; assert files is None or ff == files; files = ff
             v.append(-np.array([float(x['obj']) for x in rows]))
