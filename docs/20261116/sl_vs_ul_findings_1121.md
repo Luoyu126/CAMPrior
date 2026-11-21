@@ -159,4 +159,4 @@ renoise 下与 DiffUCO 相近或略高（800 epoch、3000 样本时配对差 +0.
 
 按问题类型和规模扩展，沿用上面的固定流程：
 - 规模：RB-large（RB-[800-1200]），ER-[700-800]。大图上 DiffUCO 与 KaMIS 的差距更大，标签上限可能重新成为问题。
-- 问题类型：MaxCut、MaxClique、MDS（DiffUCO 原文 arXiv 2406.01661 第 5 节均有 RB / BA 上的设置）。另外可用不同分布的 MIS（SATLIB）检验泛化。
+- 问题类型：MaxCut、MaxClique、MDS（DiffUCO 原文 arXiv 2406.01661 表 3–4：MIS、MaxCl 用 RB-small / RB-large，MDS、MaxCut 用 BA-small / BA-large）。另外可用不同分布的 MIS（SATLIB）检验泛化。
