@@ -2,6 +2,7 @@ from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
 from utils.label_sets import load_label_sets, choose, posterior_mean
+from utils.tour_sets import load_tour_sets, edge_indicator
 from utils.graph_weights import GraphWeights, effective_sample_size
 import json
 import os
@@ -25,7 +26,11 @@ class DIFUSCO(SLSolver):
         self.label_sets, self.label_choice = None, getattr(args, 'label_choice', 'first')
         self.label_temp = getattr(args, 'label_temp', 1.0)
         if getattr(args, 'label_set', None) and args.do_train:
-            self.label_sets = load_label_sets(args.label_set, args.train_path, args.train_samples)
+            if self.solution_type == 'edge':   # UPSTREAM.md item 61: several tours per TSP instance
+                assert self.label_choice in ('random', 'soft', 'first'), 'tour sets: first / random / soft only'
+                self.label_sets = load_tour_sets(args.label_set, args.train_path, args.train_samples)
+            else:
+                self.label_sets = load_label_sets(args.label_set, args.train_path, args.train_samples)
         # local addition (UPSTREAM.md item 45): per-graph weights of the training loss
         self.graph_weights = None
         mode = getattr(args, 'graph_weight', 'none')
@@ -34,8 +39,26 @@ class DIFUSCO(SLSolver):
             self.graph_weights = GraphWeights(mode, len(sets), nsets=[s.shape[0] for s in sets],
                                               power=args.graph_weight_power, num_tp=args.num_tp)
 
+    def edge_slices(self, graph):
+        """Per graph of the batch: (dataset index, edge slice, local (e0, e1)); edges are stored graph by graph."""
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr
+        cnt = torch.bincount(graph.batch[graph.edge_index[0]], minlength=len(idx)).tolist()
+        out, a = [], 0
+        for g, i in enumerate(idx):
+            e = graph.edge_index[:, a:a + cnt[g]] - ptr[g]
+            out.append((int(i), slice(a, a + cnt[g]), e[0], e[1])); a += cnt[g]
+        return out
+
+    def tour_labels(self, i, e0, e1):
+        """(M, E_g) undirected edge labels of the tours of training instance i (UPSTREAM.md item 61)."""
+        return edge_indicator(self.label_sets[i].to(e0.device).long(), e0, e1)
+
     def pick_labels(self, graph):
         """One label per graph of the batch from its label set (UPSTREAM.md item 44), shape like graph.x."""
+        if self.solution_type == 'edge':
+            how = 'random' if self.label_choice == 'soft' else self.label_choice
+            return torch.cat([choose(self.tour_labels(i, e0, e1), how=how)
+                              for i, _, e0, e1 in self.edge_slices(graph)]).view(-1, 1)
         dev = graph.x.device
         idx = torch.as_tensor(graph.idx).reshape(-1).tolist()
         ptr = graph.ptr.tolist()
@@ -142,7 +165,7 @@ class DIFUSCO(SLSolver):
         
         if self.solution_type == 'edge':
             time = time[graph.batch[graph.edge_index[0]].cpu().numpy()]
-            solution_0 = graph.edge_attr
+            solution_0 = graph.edge_attr if self.label_sets is None else self.pick_labels(graph)
         else:
             time = time[graph.batch.cpu().numpy()]
             solution_0 = graph.x if self.label_sets is None else self.pick_labels(graph)
@@ -175,8 +198,13 @@ class DIFUSCO(SLSolver):
     def soft_targets(self, graph, solution_t, time):
         """Per node E[x_0 | x_t] over the graph's label set (UPSTREAM.md item 56); time: per-node numpy t."""
         dev = solution_t.device
-        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
         xt = solution_t.view(-1); out = []
+        if self.solution_type == 'edge':   # time: per-edge numpy t
+            for i, sl, e0, e1 in self.edge_slices(graph):
+                Qb = torch.from_numpy(self.diffusion.Q_bar[int(time[sl.start])]).double().to(dev)
+                out.append(posterior_mean(self.tour_labels(i, e0, e1), xt[sl], Qb).float())
+            return torch.cat(out)
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
         for g, i in enumerate(idx):
             Qb = torch.from_numpy(self.diffusion.Q_bar[int(time[ptr[g]])]).double().to(dev)
             out.append(posterior_mean(self.label_sets[int(i)].to(dev), xt[ptr[g]:ptr[g + 1]], Qb).float())

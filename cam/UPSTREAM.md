@@ -280,6 +280,15 @@ shows only the items below).
     `use_reentrant=False`), so `--use_activation_checkpoint` works for the 12x256 TSP-500 network on 11 GB GPUs.
     `solvers/difusco.py` `renoise` handles edge variables: x0 ~ Bernoulli(p) per edge, then the plain training
     forward `CategoricalDiffusion.sample` to t-1 (the decode variants stay node-only).
+61. Several tours per TSP instance as DIFUSCO labels (`utils/tour_sets.py`; `solvers/difusco.py` `edge_slices`,
+    `tour_labels`, edge branches of `pick_labels` / `soft_targets`): with `--label_set` a tour-set file (per
+    instance the distinct tours, sorted by length; checked against the points of `--train_path`), every step uses
+    one tour (`random`, `first`) or the posterior mean over the set (`soft`). Tours become undirected edge labels
+    on the sparse kNN graph (edge (i, j) is 1 when j follows or precedes i), unlike the upstream directed
+    i -> successor(i) label. Tools in `scripts/tsp/`: `gen_instances.py` (uniform instances), `lkh_labels.py`
+    (LKH-3 with K seeds), `dump_tours.py` (all tours a trained model samples, any `--method`),
+    `match_tour_sets.py` (equal numbers of tours per instance across sources). Note: the TSP dataset reads
+    `lines[:num_samples]`, so the default `-1` drops the last instance; pass `--test_samples` explicitly.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
