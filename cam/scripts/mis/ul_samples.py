@@ -1,6 +1,7 @@
 """All samples of an unsupervised solver as labels (local addition, UPSTREAM.md item 47).
 
-Runs the usual test of a trained DiffUCO checkpoint (main.py arguments, --test_path = the graphs) and keeps,
+Runs the usual test of a trained DiffUCO or CAM checkpoint (--method DiffUCO / CAM; both sample by the same flip
+chain) (main.py arguments, --test_path = the graphs) and keeps,
 for every graph, all --num_k greedy-decoded samples as unique sets with their counts and sizes
 (KEEP_SETS=0: sizes only). Output {'files', 'samples': [{'sizes', 'sets', 'counts', 'kamis'}]}; expand
 with sets.repeat_interleave(counts, 0) for a label set file of --label_choice random / tilted.
@@ -24,7 +25,9 @@ def evaluate_single(self, graph):
     u, c = torch.unique(s.to(torch.uint8), dim=0, return_counts=True)
     KEPT[i] = dict(sizes=s.sum(1).cpu(), sets=u.cpu() if KEEP_SETS else None, counts=c.cpu(), kamis=int(graph.x.sum()))
     return energy.min()
+from solvers.cam import CAM
 DiffUCO.evaluate_single = torch.no_grad()(evaluate_single)
+CAM.evaluate_single = torch.no_grad()(evaluate_single)
 try: M.main()
 finally:
     rank = int(os.environ.get('RANK', 0)); torch.save(KEPT, f'{OUT}.part{rank}')
