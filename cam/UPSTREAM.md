@@ -275,6 +275,11 @@ shows only the items below).
     (sampled nodes first): `renoise_decode` keeps the maximal decoded solution, `renoise_feasible` only drops
     conflicting sampled nodes. Diagnostic `CAM_TRACE_INPUTS=FILE` (`trace_inputs`): per step, the sampler's
     input vs a training-form input (the chain's final solution noised to the same t).
+60. Edge problems (TSP) with DIFUSCO: `models/angnn.py` activation-checkpoint branch read a non-existent
+    attribute (`node_feature_only`); it now uses the same `add_time_on_edge` rule as the plain branch (and
+    `use_reentrant=False`), so `--use_activation_checkpoint` works for the 12x256 TSP-500 network on 11 GB GPUs.
+    `solvers/difusco.py` `renoise` handles edge variables: x0 ~ Bernoulli(p) per edge, then the plain training
+    forward `CategoricalDiffusion.sample` to t-1 (the decode variants stay node-only).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

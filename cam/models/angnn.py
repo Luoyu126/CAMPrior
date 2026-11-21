@@ -318,12 +318,13 @@ class AnGNN(nn.Module):
             if self.use_activation_checkpoint and self.training:
                 run_sparse_layer_fn = functools.partial(
                     run_sparse_layer,
-                    add_time_on_edge=not self.node_feature_only
+                    # local fix (UPSTREAM.md item 60): same branch as below; the attribute it read did not exist
+                    add_time_on_edge=self.problem in ['tsp', 'cvrp']
                 )
                 
                 out = activation_checkpoint.checkpoint(
                     run_sparse_layer_fn(layer, time_layer, out_layer, adj_matrix, edge_index),
-                    x_in, e_in, time_emb
+                    x_in, e_in, time_emb, use_reentrant=False
                 )
                 x = out[0]
                 e = out[1]

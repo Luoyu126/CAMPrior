@@ -213,10 +213,14 @@ class DIFUSCO(SLSolver):
         It does not use x_t. It is the reverse of the forward q(x_{t-1} | x_t, x_0) = q(x_{t-1} | x_0),
         which has the same marginals q(x_t | x_0) as the training forward (DDIM, Song et al. 2021 §4).
         At t2 = 0 it returns the predicted probabilities, as the posterior sampler does."""
-        p1 = x0_pred_prob[..., 1].reshape(graph.num_nodes, -1)
+        n_var = graph.edge_index.shape[1] if self.solution_type == 'edge' else graph.num_nodes
+        p1 = x0_pred_prob[..., 1].reshape(n_var, -1)
         if t2 == 0:
             return p1.clamp(0, 1)
         x0 = torch.bernoulli(p1.clamp(0, 1))
+        if self.solution_type == 'edge':   # edge variables (TSP): the plain training forward, UPSTREAM.md item 60
+            assert self.sampler == 'renoise', 'decode-before-renoise is implemented for node problems only'
+            return self.diffusion.sample(F.one_hot(x0.long(), num_classes=2).float(), int(t2))
         if self.sampler in ('renoise_decode', 'renoise_feasible'):
             x0 = self.decode_x0(graph, x0, p1)
         t_nodes = torch.full((graph.num_nodes,), int(t2), dtype=torch.long, device=x0.device)
