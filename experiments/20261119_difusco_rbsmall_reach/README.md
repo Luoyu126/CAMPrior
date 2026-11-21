@@ -5,6 +5,9 @@
 训练设置同 `20261119_difusco_rbsmall_fewstep` 的 tp50（50 个扩散步、余弦噪声、50 步线性测试调度，200 epoch，AdamW 2e-4）。
 当前最好的基线：tp50 + DiffUCO 采 200 取最大（k200），三个种子 19.815–19.836。
 
+**采样器约定（11-21）：** 本实验及以后的 DIFUSCO 结果以 renoise 采样为主（验证挑 checkpoint 和测试都用它），D3PM 后验作对照。
+renoise 即 Fast T2T 的多步一致性采样（arXiv 2502.02941 算法 1），不是本项目的贡献；说明见 `docs/20261116/difusco_sota_soft_labels.md` 第 2.4 节。
+
 ## 1. 量化"好学程度"（`learnability_analysis.py`，前 1000 张训练图）
 
 "差距" = 标签大小 − 训练后的模型在该训练图上 50 步、20 个样本取最大的结果。
