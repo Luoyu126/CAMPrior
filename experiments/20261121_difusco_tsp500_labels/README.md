@@ -58,4 +58,54 @@ Note: the TSP dataset reads `lines[:num_samples]`, so with the default `-1` the 
 
 ## Results
 
-(pending)
+Test set: 128 TSP-500 instances. Reference tours average 16.5836. Each model is evaluated with one test seed. Paired differences are bootstrapped over instances, with 95% CIs (`summarize.py`).
+
+### 50 steps, 16 samples, no 2-opt
+
+| run | D3PM posterior | renoise |
+|---|---|---|
+| lkh_random | +13.32% | +12.08% |
+| lkh_soft | +11.96% | **+10.98%** |
+| cam_random | +14.86% | +13.11% |
+| cam_soft | +15.24% | +12.90% |
+
+For comparison, the released CAM model with its own protocol (10 steps, 16 samples, no 2-opt) gets +13.91%.
+
+Paired differences, renoise:
+
+| Comparison | Gap difference | 95% CI |
+|---|---|---|
+| soft − random, LKH labels | −1.11% | [−1.51, −0.68] |
+| soft − random, CAM labels | −0.21% | [−0.70, +0.29] |
+| CAM − LKH, random | +1.03% | [+0.57, +1.49] |
+| CAM − LKH, soft | +1.93% | [+1.49, +2.36] |
+
+Ten steps instead of 50 give almost the same results: lkh_random +12.20%, lkh_soft +11.08%; soft − random = −1.13% [−1.55, −0.70].
+
+### With 1000 2-opt iterations (renoise, 16 samples)
+
+| run | 50 steps | 10 steps (CAM's protocol) |
+|---|---|---|
+| lkh_random | +1.572% | +1.570% |
+| lkh_soft | **+1.415%** | +1.482% |
+| cam_random | +1.957% | |
+| cam_soft | +1.982% | |
+| CAM itself (UL, released checkpoint) | | +1.976% |
+
+Reported numbers for reference (CAM paper, Table 2, same 10-step / 16-sample / 2-opt protocol): DIFUSCO trained on 128k LKH labels, +1.81%; CAM, +2.18%.
+
+Paired differences:
+
+| Comparison | Gap difference | 95% CI |
+|---|---|---|
+| lkh_soft (10 steps) − CAM | −0.494% | [−0.596, −0.392] |
+| lkh_random (10 steps) − CAM | −0.407% | [−0.492, −0.322] |
+| cam_random − CAM | −0.019% | [−0.105, +0.065] (the student matches its teacher) |
+| soft − random, LKH labels, 50 steps | −0.157% | [−0.233, −0.081] |
+| soft − random, CAM labels, 50 steps | +0.025% | [−0.050, +0.099] |
+| CAM − LKH, random | +0.385% | [+0.304, +0.467] |
+| CAM − LKH, soft | +0.567% | [+0.488, +0.648] |
+
+Time per instance (one process): CAM 7.2 s. Ours with 10 steps 12.5 s, measured while the GPU was shared with MIS training, so it is not directly comparable.
+
+Pending: decode-before-renoise (5 2-opt per step, no final 2-opt).
