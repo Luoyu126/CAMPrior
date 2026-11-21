@@ -270,6 +270,11 @@ shows only the items below).
     size, plus the existing label when as large), in the label-set format for `random` / `soft`.
     `scripts/mis/match_label_counts.py`: per graph, every source keeps a random subset of as many sets as the
     smallest source has, so source comparisons are not confounded by the number of labels.
+59. `--difusco_sampler renoise_decode | renoise_feasible` (`solvers/difusco.py` `decode_x0`): in the re-noising
+    sampler, make the sampled x0 feasible with the problem's own greedy decoder before noising it to t-1
+    (sampled nodes first): `renoise_decode` keeps the maximal decoded solution, `renoise_feasible` only drops
+    conflicting sampled nodes. Diagnostic `CAM_TRACE_INPUTS=FILE` (`trace_inputs`): per step, the sampler's
+    input vs a training-form input (the chain's final solution noised to the same t).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

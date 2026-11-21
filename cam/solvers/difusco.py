@@ -3,6 +3,8 @@ from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
 from utils.label_sets import load_label_sets, choose, posterior_mean
 from utils.graph_weights import GraphWeights, effective_sample_size
+import json
+import os
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -220,6 +222,27 @@ class DIFUSCO(SLSolver):
         t_nodes = torch.full((graph.num_nodes,), int(t2), dtype=torch.long, device=x0.device)
         return self.heated.sample(graph.A, graph.b, x0, t_nodes)
 
+    @torch.no_grad()
+    def trace_inputs(self, graph, trace, final):
+        """Diagnostic (env CAM_TRACE_INPUTS=FILE, local addition, UPSTREAM.md item 59): train-test consistency of
+        the network inputs along the sampling trajectory. For every step, compare the sampler's input x_t with a
+        training-form input at the same t, i.e. the chain's own final decoded solution noised by the training
+        forward: number of 1s, number of edges with both ends 1, and the cross-entropy of the prediction
+        against the final solution. Appends one JSON line per graph."""
+        e0, e1 = graph.edge_index
+        def stats(x, p):
+            ce = -(final * torch.log(p.clamp_min(1e-8)) + (1 - final) * torch.log((1 - p).clamp_min(1e-8))).mean(0)
+            return [x.sum(0).mean().item(), (x[e0] * x[e1]).sum(0).mean().item() / 2, ce.mean().item()]
+        rows = []
+        for t1, x, p in trace:
+            t_nodes = torch.full((graph.num_nodes,), int(t1), dtype=torch.long, device=x.device)
+            xr = self.heated.sample(graph.A, graph.b, final, t_nodes)
+            time = torch.full_like(xr, float(t1))
+            pr = self.model(graph, xr.unsqueeze(-1), time).softmax(-1)[..., 1].reshape(graph.num_nodes, -1)
+            rows.append([int(t1)] + stats(x, p) + stats(xr, pr))
+        with open(os.environ['CAM_TRACE_INPUTS'], 'a') as f:
+            f.write(json.dumps({'n': graph.num_nodes, 'final': final.sum(0).mean().item(), 'steps': rows}) + '\n')
+
     def decode_x0(self, graph, x0, p1):
         """Make the sampled x0 a feasible solution with the problem's own decoder before re-noising, so the
         network input at every step is a noised feasible solution, as in training (local addition, UPSTREAM.md
@@ -246,16 +269,21 @@ class DIFUSCO(SLSolver):
                 num_nodes = graph.num_nodes
                 solution = torch.randint(0,2,size=(num_nodes,self.num_k), device=self.accelerator.device, dtype=torch.float)
     
+            trace = [] if os.environ.get('CAM_TRACE_INPUTS') else None
             for t in range(self.num_t):
                 t1, t2 = self.inference_schedule(t)
                 time = torch.ones((solution.shape[0],self.num_k), device=self.accelerator.device, dtype=torch.float)*t1            
                 logits = self.model(graph, solution.unsqueeze(-1), time)
                 x0_pred_prob = logits.softmax(dim=-1)
+                if trace is not None:
+                    trace.append((t1, solution.clone(), x0_pred_prob[..., 1].reshape(graph.num_nodes, -1).clone()))
                 if self.sampler.startswith('renoise'):
                     solution = self.renoise(graph, x0_pred_prob, t2)
                 else:
                     solution = self.categorical_posterior(t2, t1, x0_pred_prob, solution)
     
-            best_energy, _ = self.problem.evaluate(graph, solution)
+            best_energy, final = self.problem.evaluate(graph, solution)
+            if trace is not None:
+                self.trace_inputs(graph, trace, final.float())
             best_energies.append(best_energy)
         return torch.cat(best_energies).min() 
