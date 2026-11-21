@@ -289,6 +289,10 @@ shows only the items below).
     (LKH-3 with K seeds), `dump_tours.py` (all tours a trained model samples, any `--method`),
     `match_tour_sets.py` (equal numbers of tours per instance across sources). Note: the TSP dataset reads
     `lines[:num_samples]`, so the default `-1` drops the last instance; pass `--test_samples` explicitly.
+62. `--difusco_sampler renoise_decode` on TSP (`solvers/difusco.py` `decode_tour`, `--decode_two_opt N`): at every
+    step the sampled edges x0 are merged into a tour by the env's greedy edge insertion (sampled edges first), then
+    N iterations of 2-opt (0: none), and the tour (undirected edge labels) is noised to t-1 by the training forward.
+    `scripts/mis/ul_samples.py` also dumps the samples of a CAM checkpoint (same flip sampler as DiffUCO).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

@@ -20,6 +20,7 @@ class DIFUSCO(SLSolver):
         self.loss_func = nn.CrossEntropyLoss()
         # local addition (see UPSTREAM.md item 42): energy-heated forward and re-noising sampler
         self.sampler = getattr(args, 'difusco_sampler', 'posterior')
+        self.decode_two_opt = getattr(args, 'decode_two_opt', 0)
         self.heated = HeatedForward(self.diffusion.beta, getattr(args, 'heat_lambda', 0.0),
                                     getattr(args, 'heat_until', 0.5), args.beta)
         # local addition (UPSTREAM.md item 44): several optimal labels per training graph
@@ -247,7 +248,9 @@ class DIFUSCO(SLSolver):
             return p1.clamp(0, 1)
         x0 = torch.bernoulli(p1.clamp(0, 1))
         if self.solution_type == 'edge':   # edge variables (TSP): the plain training forward, UPSTREAM.md item 60
-            assert self.sampler == 'renoise', 'decode-before-renoise is implemented for node problems only'
+            assert self.sampler in ('renoise', 'renoise_decode'), 'renoise_feasible is for node problems only'
+            if self.sampler == 'renoise_decode':
+                x0 = self.decode_tour(graph, x0, p1)
             return self.diffusion.sample(F.one_hot(x0.long(), num_classes=2).float(), int(t2))
         if self.sampler in ('renoise_decode', 'renoise_feasible'):
             x0 = self.decode_x0(graph, x0, p1)
@@ -274,6 +277,19 @@ class DIFUSCO(SLSolver):
             rows.append([int(t1)] + stats(x, p) + stats(xr, pr))
         with open(os.environ['CAM_TRACE_INPUTS'], 'a') as f:
             f.write(json.dumps({'n': graph.num_nodes, 'final': final.sum(0).mean().item(), 'steps': rows}) + '\n')
+
+    def decode_tour(self, graph, x0, p1):
+        """TSP counterpart of decode_x0 (UPSTREAM.md item 62): the sampled edges x0 (score 1 + p, the rest p) are
+        merged into a tour by the env's greedy edge insertion, then --decode_two_opt iterations of 2-opt (0: none);
+        the tour is returned as undirected edge labels on the sparse graph, the form the tour-set labels have."""
+        two = self.problem.two_opt_iterations
+        self.problem.two_opt_iterations = self.decode_two_opt
+        try:
+            _, tours = self.problem.evaluate(graph, x0 * (1 + p1) + (1 - x0) * p1)
+        finally:
+            self.problem.two_opt_iterations = two
+        e0, e1 = graph.edge_index
+        return edge_indicator(tours.T[:, :-1].contiguous(), e0, e1).T
 
     def decode_x0(self, graph, x0, p1):
         """Make the sampled x0 a feasible solution with the problem's own decoder before re-noising, so the
