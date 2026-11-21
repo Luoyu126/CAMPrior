@@ -66,7 +66,7 @@ def main():
     # local addition (see UPSTREAM.md item 42): energy-heated DIFUSCO forward and re-noising sampler
     parser.add_argument('--heat_lambda', type=float, default=0.0, help='flip prob beta_t*sigmoid(lambda_t*dE); 0 = uniform')
     parser.add_argument('--heat_until', type=float, default=0.5, help='lambda_t decays linearly to 0 at heat_until*num_tp')
-    parser.add_argument('--difusco_sampler', type=str, default='posterior', choices=['posterior', 'renoise'])
+    parser.add_argument('--difusco_sampler', type=str, default='posterior', choices=['posterior', 'renoise', 'renoise_decode', 'renoise_feasible'])
     # local addition (UPSTREAM.md item 44): several optimal labels per training graph (DIFUSCO)
     parser.add_argument('--label_set', type=str, default=None, help='scripts/mis/build_solution_sets.py output')
     parser.add_argument('--label_choice', type=str, default='first', choices=['first', 'random', 'nearest', 'tilted', 'soft'])

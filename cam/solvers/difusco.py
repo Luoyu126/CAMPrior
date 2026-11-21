@@ -215,8 +215,20 @@ class DIFUSCO(SLSolver):
         if t2 == 0:
             return p1.clamp(0, 1)
         x0 = torch.bernoulli(p1.clamp(0, 1))
+        if self.sampler in ('renoise_decode', 'renoise_feasible'):
+            x0 = self.decode_x0(graph, x0, p1)
         t_nodes = torch.full((graph.num_nodes,), int(t2), dtype=torch.long, device=x0.device)
         return self.heated.sample(graph.A, graph.b, x0, t_nodes)
+
+    def decode_x0(self, graph, x0, p1):
+        """Make the sampled x0 a feasible solution with the problem's own decoder before re-noising, so the
+        network input at every step is a noised feasible solution, as in training (local addition, UPSTREAM.md
+        item 59). The greedy decoder takes the sampled nodes first (score 1 + p) and then the rest (score p):
+        'renoise_decode' keeps the resulting maximal solution, 'renoise_feasible' only its sampled nodes
+        (conflicts removed, nothing added)."""
+        _, sol = self.problem.evaluate(graph, x0 * (1 + p1) + (1 - x0) * p1)
+        sol = sol.float()
+        return sol * x0 if self.sampler == 'renoise_feasible' else sol
 
     def evaluate_single(self, graph):
         best_energies = []
@@ -239,7 +251,7 @@ class DIFUSCO(SLSolver):
                 time = torch.ones((solution.shape[0],self.num_k), device=self.accelerator.device, dtype=torch.float)*t1            
                 logits = self.model(graph, solution.unsqueeze(-1), time)
                 x0_pred_prob = logits.softmax(dim=-1)
-                if self.sampler == 'renoise':
+                if self.sampler.startswith('renoise'):
                     solution = self.renoise(graph, x0_pred_prob, t2)
                 else:
                     solution = self.categorical_posterior(t2, t1, x0_pred_prob, solution)
