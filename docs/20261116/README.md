@@ -36,3 +36,6 @@ CAMPrior 做的事是：把一个好的先验（RLSA）当作参考，训练出�
 ## 11-20 更新
 
 DIFUSCO 当前最好方法（DiffUCO 多标签 + 后验均值软目标，与 DiffUCO 相近：19.890 对 19.880）的完整 formulation 与结果：`difusco_sota_soft_labels.md`。
+
+## 11-21 更新
+SL 与 UL 差距的两个来源（训推不一致、标签好学程度）、当前结果和固定流程：`sl_vs_ul_findings_1121.md`。
