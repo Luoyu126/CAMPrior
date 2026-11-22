@@ -128,4 +128,13 @@ Paired differences:
 | CAM − LKH, random | +0.226% | [+0.144, +0.313] |
 | CAM − LKH, soft | +0.508% | [+0.422, +0.595] |
 
+More per-step local search on lkh_soft (GPUs not shared):
+
+| Setting | gap | time / instance |
+|---|---|---|
+| 5 2-opt per step, + 1000 final 2-opt | +1.065% | 73 s |
+| **20 2-opt per step, no final 2-opt** | **+0.723%** | 74 s |
+
+For reference, the DIFUSCO paper (Table 2) reports +0.46% for 16 samples + 2-opt, with 128k training instances and 1000 training steps.
+
 Time per instance is about 72 s, against 31 s for renoise + 2-opt; the GPU was shared, so these are only indicative. On 16 instances with an earlier checkpoint, at similar time (about 150 s), decode with 20 2-opt per step gave +0.81%, and renoise with 32 samples plus 2-opt gave +1.61% (`docs/20261116/tsp_vs_mis_1121.md` §3).
