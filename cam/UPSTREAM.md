@@ -293,6 +293,10 @@ shows only the items below).
     step the sampled edges x0 are merged into a tour by the env's greedy edge insertion (sampled edges first), then
     N iterations of 2-opt (0: none), and the tour (undirected edge labels) is noised to t-1 by the training forward.
     `scripts/mis/ul_samples.py` also dumps the samples of a CAM checkpoint (same flip sampler as DiffUCO).
+63. `--ul_chain_decode` (`solvers/meta_solver.py` `ULSolver.chain_decode_tour`): the same in-chain decoding for the
+    UL flip sampler (CAM, DiffUCO) on TSP: after every non-final step the current edges are merged into a tour
+    (sampled edges first, then by their post-flip probability), `--decode_two_opt N` iterations of 2-opt, and the
+    tour's undirected edge labels are the state for the next step.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

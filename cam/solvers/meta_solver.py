@@ -301,6 +301,8 @@ class SLSolver(NNSolver):
 class ULSolver(NNSolver):
     def __init__(self, args):
         super(ULSolver, self).__init__(args)
+        self.ul_chain_decode = getattr(args, 'ul_chain_decode', False)
+        self.decode_two_opt = getattr(args, 'decode_two_opt', 0)
                 
         if args.do_train:
             self.tau = args.tau0
@@ -405,6 +407,20 @@ class ULSolver(NNSolver):
                 self.accelerator.print('Early stop')
                 break
                 
+    def chain_decode_tour(self, graph, x, q):
+        """--ul_chain_decode on TSP (local addition, UPSTREAM.md item 63): the sampled edges x (score 1 + q, the
+        rest q, q = probability of the edge after the flip) are merged into a tour by the env's greedy edge
+        insertion, then --decode_two_opt iterations of 2-opt; returns the tour as undirected edge labels."""
+        from utils.tour_sets import edge_indicator
+        two = self.problem.two_opt_iterations
+        self.problem.two_opt_iterations = self.decode_two_opt
+        try:
+            _, tours = self.problem.evaluate(graph, x * (1 + q) + (1 - x) * q)
+        finally:
+            self.problem.two_opt_iterations = two
+        e0, e1 = graph.edge_index
+        return edge_indicator(tours.T[:, :-1].contiguous(), e0, e1).T.float()
+
     def evaluate_single(self, graph):
         best_energies = []
         for _ in range(self.num_repetition):
@@ -429,7 +445,10 @@ class ULSolver(NNSolver):
                     solution = solution*(1-flip_prob) + flip_prob*(1-solution)
                 else:
                     rr = torch.rand_like(solution)
+                    q = solution*(1-flip_prob) + flip_prob*(1-solution)
                     solution = torch.where(rr<flip_prob, 1-solution, solution)
+                    if self.ul_chain_decode and self.solution_type == 'edge':
+                        solution = self.chain_decode_tour(graph, solution, q)
             
             if not self.skip_decode:
                 best_energy, _ = self.problem.evaluate(graph, solution)
