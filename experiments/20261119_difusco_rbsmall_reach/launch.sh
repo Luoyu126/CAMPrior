@@ -13,6 +13,9 @@
 #              uniformly per step; pS_dselbot4 the 4 least predictable (control); pS_dtop all of them (control).
 #   qR_dNall / qR_dNfpsM  diverse DiffUCO labels (cam/scripts/mis/diverse_labels.py): all unique largest of N DiffUCO
 #              samples per graph, or M of them by farthest-point sampling in Hamming distance; _long: 400 epochs.
+#   mkamis / mdiffuco  KaMIS / DiffUCO maximum sets, per graph equal counts (match_label_counts.py), random one per step
+#   mcam       CAM (Shengyu's cam_d4) maximum sets of 1000 samples per graph, cut to matched_diffuco's count (fewer
+#              where CAM has fewer); mdiffucoc: matched_diffuco cut to mcam's per-graph count (count-matched control)
 #   *_long     400 epochs instead of 200 (any label mode); *_eN: N epochs
 #   *_soft     the same label set, but the target is the posterior mean over the set given x_t (--label_choice soft,
 #              cam/utils/label_sets.py posterior_mean): same optimum as random, lower-variance targets
@@ -40,7 +43,7 @@ case "$KIND" in
     t1000tau*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_typ/t1000_tau${KIND#t1000tau}.pt" --label_choice random) ;;
     s1000*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_strong/s1000_${KIND#s1000}.pt" --label_choice random) ;;
     c1far*|c1near*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_cov/c1_${KIND#c1}.pt" --label_choice random) ;;
-    mkamis|mdiffuco) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_${KIND#m}.pt" --label_choice random) ;;
+    mkamis|mdiffuco|mcam|mdiffucoc) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_${KIND#m}.pt" --label_choice random) ;;
     dtop) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_ullabels/train_diffuco_all200_top.pt --label_choice random) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
