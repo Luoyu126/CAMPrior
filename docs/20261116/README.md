@@ -39,3 +39,4 @@ DIFUSCO 当前最好方法（DiffUCO 多标签 + 后验均值软目标，与 Dif
 
 ## 11-21 更新
 SL 与 UL 差距的两个来源（训推不一致、标签好学程度）、当前结果和固定流程：`sl_vs_ul_findings_1121.md`。
+- `tsp_vs_mis_1121.md`：TSP-500 与 MIS RB-small 的统一解释（训推一致 + 标签好学），含 TSP 标签来源实验、TSP 解码后再加噪、MIS 的 CAM 标签实验。
