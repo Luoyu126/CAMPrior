@@ -108,4 +108,24 @@ Paired differences:
 
 Time per instance (one process): CAM 7.2 s. Ours with 10 steps 12.5 s, measured while the GPU was shared with MIS training, so it is not directly comparable.
 
-Pending: decode-before-renoise (5 2-opt per step, no final 2-opt).
+### Decode before renoise (`renoise_decode`, 5 2-opt per step, no final 2-opt, 50 steps, 16 samples)
+
+At every step, x̂₀ is first merged into a tour, 5 2-opt iterations are applied, and then it is noised to t−1.
+
+| run | gap | renoise + 1000 final 2-opt (from above) |
+|---|---|---|
+| lkh_random | +1.319% | +1.572% |
+| lkh_soft | **+1.155%** | +1.415% |
+| cam_random | +1.545% | +1.957% |
+| cam_soft | +1.663% | +1.982% |
+
+Paired differences:
+
+| Comparison | Gap difference | 95% CI |
+|---|---|---|
+| soft − random, LKH labels | −0.164% | [−0.243, −0.080] |
+| soft − random, CAM labels | +0.118% | [+0.044, +0.190] |
+| CAM − LKH, random | +0.226% | [+0.144, +0.313] |
+| CAM − LKH, soft | +0.508% | [+0.422, +0.595] |
+
+Time per instance is about 72 s, against 31 s for renoise + 2-opt; the GPU was shared, so these are only indicative. On 16 instances with an earlier checkpoint, at similar time (about 150 s), decode with 20 2-opt per step gave +0.81%, and renoise with 32 samples plus 2-opt gave +1.61% (`docs/20261116/tsp_vs_mis_1121.md` §3).
