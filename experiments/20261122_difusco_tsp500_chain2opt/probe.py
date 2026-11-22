@@ -1,4 +1,5 @@
-"""main.py test with per-instance logging of the in-chain 2-opt sampler (renoise_decode on TSP).
+"""main.py test with per-instance logging of the in-chain 2-opt samplers on TSP (DIFUSCO renoise_decode,
+CAM / DiffUCO --ul_chain_decode).
 
 For every test instance one JSON line goes to $PROBE_OUT:
   idx, nofinal (best of the samples' tours without the final 2-opt), final (with --two_opt_iterations of 2-opt),
@@ -16,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import main as M  # noqa: E402
 from envs import tsp as E  # noqa: E402
 from solvers import difusco as D  # noqa: E402
+from solvers import meta_solver as MS  # noqa: E402
 
 OUT = os.environ['PROBE_OUT']; S = {'in_decode': False, 'iters': 0, 'chain': 0}
 
@@ -24,14 +26,16 @@ def two(*a, **k):
     tour, n = _two(*a, **k); S['iters'] += n; return tour, n
 E.batched_two_opt_torch = two
 
-_decode = D.DIFUSCO.decode_tour
-def decode_tour(self, *a, **k):
-    S['in_decode'] = True
-    try:
-        return _decode(self, *a, **k)
-    finally:
-        S['in_decode'] = False; S['chain'] += S['iters']; S['iters'] = 0
-D.DIFUSCO.decode_tour = decode_tour
+def in_decode(f):
+    def g(self, *a, **k):
+        S['in_decode'] = True
+        try:
+            return f(self, *a, **k)
+        finally:
+            S['in_decode'] = False; S['chain'] += S['iters']; S['iters'] = 0
+    return g
+D.DIFUSCO.decode_tour = in_decode(D.DIFUSCO.decode_tour)            # DIFUSCO renoise_decode
+MS.ULSolver.chain_decode_tour = in_decode(MS.ULSolver.chain_decode_tour)  # CAM / DiffUCO --ul_chain_decode
 
 _evaluate = E.Env.evaluate
 def evaluate(self, graph, solution):
