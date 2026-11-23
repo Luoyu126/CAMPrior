@@ -9,6 +9,7 @@
 #   dif       all distinct smallest sets among DiffUCO samples per graph, one drawn per step (+ _soft)
 # Sampler (validation, so it also selects best.pt): post = D3PM posterior (DIFUSCO), renoise (Fast T2T Alg. 1).
 # Usage: bash experiments/20261123_difusco_mds_labels/launch.sh <gpu> <ba|rb> <label mode> <post|renoise> [seed]
+# Several runs on one GPU: give each its own PORT=... (default 29800 + gpu).
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
@@ -34,7 +35,7 @@ export WANDB_DIR="$EXP_DIR" NCCL_IB_DISABLE=1 CUDA_VISIBLE_DEVICES=$GPU
 cam_require_gpu
 RUN=${EXP_NAME}_${DS}small_${MODE}_${SAMP}_s${SEED}; OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; mkdir -p "$OUT"
 cd "$REPO/cam"
-nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_process_port $((29800 + GPU)) main.py \
+nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_process_port ${PORT:-$((29800 + GPU))} main.py \
     --train_path $TR --valid_path $VA --test_path $TE --problem mds --valid_samples 64 --seed "$SEED" \
     --method DIFUSCO --model EncodeProcessDecode --num_h 64 --num_l 8 --num_tp 50 --diffusion_schedule cosine \
     --batch_size 40 --optimizer AdamW --lr 0.0002 --epochs 200 --weight_decay 0.0001 --lr_scheduler cosine-decay \
