@@ -40,9 +40,12 @@ class Dataset(Dataset):
         data.b = -degrees
         data.idx = idx
 
-        if self.data_label_path is not None:
-            stem = Path(self.files[idx]).stem
-            x = np.load(os.path.join(self.data_label_path, stem + ".npy"))
-            data.x = torch.from_numpy(x).to(self.dtype).unsqueeze(1)
+        # local patch (UPSTREAM.md item 64): read a label only where its .npy exists (RB graphs used for MDS carry
+        # the MIS anno/ directory); otherwise x is a zero placeholder (supervised MDS takes labels from --label_set)
+        npy = os.path.join(self.data_label_path, Path(self.files[idx]).stem + ".npy") if self.data_label_path else None
+        if npy is not None and os.path.exists(npy):
+            data.x = torch.from_numpy(np.load(npy)).to(self.dtype).unsqueeze(1)
+        else:
+            data.x = torch.zeros(data.num_nodes, 1, dtype=self.dtype)
 
         return data

@@ -297,6 +297,9 @@ shows only the items below).
     UL flip sampler (CAM, DiffUCO) on TSP: after every non-final step the current edges are merged into a tour
     (sampled edges first, then by their post-flip probability), `--decode_two_opt N` iterations of 2-opt, and the
     tour's undirected edge labels are the state for the next step.
+64. `datasets/mcut.py` (also the MDS dataset): a node label is read from `anno/<stem>.npy` only where that file
+    exists, otherwise `x` is zeros. MDS on the RB graphs reuses `/usr1/shengyuf/MIS/RB_small_*`, whose `anno/`
+    holds MIS labels; supervised MDS (DIFUSCO) takes its labels from `--label_set` (`scripts/mds/ilp_labels.py`).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
