@@ -5,7 +5,7 @@
 # cosine decay, wd 1e-4, 200 epochs; validation 64 graphs, 50 linear steps x 20 samples.
 # Label modes (label sets under data/mds_labels/):
 #   ilp1      one integer-programming optimum per graph (the baseline label, as KaMIS / Gurobi for MIS)
-#   ilp8      up to 8 random optima per graph (BA only), one drawn per step   (+ _soft: posterior-mean target)
+#   ilp8      up to 8 random optima per graph, one drawn per step   (+ _soft: posterior-mean target)
 #   dif       all distinct smallest sets among DiffUCO samples per graph, one drawn per step (+ _soft)
 # Sampler (validation, so it also selects best.pt): post = D3PM posterior (DIFUSCO), renoise (Fast T2T Alg. 1).
 # Usage: bash experiments/20261123_difusco_mds_labels/launch.sh <gpu> <ba|rb> <label mode> <post|renoise> [seed]
@@ -23,7 +23,7 @@ esac
 KIND=${MODE%_soft}; CHOICE=random; [[ "$MODE" == *_soft ]] && CHOICE=soft
 case "$KIND" in
     ilp1) LABEL=(--label_set "$L/${DS}_small_train_ilp$([ $DS = ba ] && echo 8 || echo 1).pt" --label_choice first) ;;
-    ilp8) [ $DS = ba ] || { echo "ilp8 only on ba"; exit 1; }; LABEL=(--label_set "$L/ba_small_train_ilp8.pt" --label_choice $CHOICE) ;;
+    ilp8) LABEL=(--label_set "$L/${DS}_small_train_ilp8.pt" --label_choice $CHOICE) ;;
     dif)  LABEL=(--label_set "$L/${DS}_small_train_diffuco.pt" --label_choice $CHOICE) ;;
     *) echo "unknown label mode $MODE"; exit 1 ;;
 esac
