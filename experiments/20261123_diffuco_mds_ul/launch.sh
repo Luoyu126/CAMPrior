@@ -5,7 +5,8 @@
 # lr 0.003, T_start (tau0) 0.3, 8 GNN layers, 5 diffusion steps, annealed noise, M_omega 20 graphs, M_KL 10 samples.
 # Stability settings and epoch budget as the tuned RB-small MIS DiffUCO run of the CAM paper
 # (20260513_diffuco_rbsmall_annealing/launch_original.sh): RAdam, grad clip 1, cosine decay, 1000 epochs of 4000
-# graphs, temperature annealed over 1000 epochs, early stop after 200 epochs without validation gain.
+# graphs, temperature annealed over 1000 epochs. No early stop (patience 2000) and a checkpoint every epoch: on MDS the
+# validation size first rises while the temperature is high (best at epoch ~6, then early stop at ~210 with patience 200).
 # The RB graphs are the MIS RB-small graphs (MDS has no RB results in the literature; same hyperparameters).
 # Usage: bash experiments/20261123_diffuco_mds_ul/launch.sh <gpus, e.g. 0,1,2,3> <ba|rb> [seed]
 set -euo pipefail
@@ -33,6 +34,6 @@ nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=$NP --num_ma
     --num_t 50 --num_k 20 --num_tp 5 --num_kp 10 --num_h 64 --num_l 8 --tau0 0.3 \
     --method DiffUCO --model EncodeProcessDecode --noise_energy annealing \
     --optimizer RAdam --grad_clip 1 --lr 0.003 --lr_scheduler cosine-decay \
-    --epochs 1000 --N_anneal 1000 --patience 200 --num_workers 4 \
+    --epochs 1000 --N_anneal 1000 --patience 2000 --save_every_epoch --num_workers 4 \
     --do_train --save_dir "$OUT" --wandb_name SLVUL --wandb_run_name "$RUN" > "$OUT/train.log" 2>&1 &
 echo "$RUN pid $! gpus $GPUS"
