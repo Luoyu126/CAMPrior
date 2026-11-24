@@ -28,7 +28,7 @@ renoise 就是 Fast T2T 的 Alg. 1，等价于 DDIM σ=0 的离散版。它**不
 | D3PM 后验采样 `categorical_posterior` | `solvers/difusco.py:82-119` |
 | 训练 `train_batch`：前向加噪 + x₀ 交叉熵，与采样器无关 | `solvers/difusco.py:162-197` |
 | **renoise 本体 `renoise(graph, x0_pred_prob, t2)`** | `solvers/difusco.py:239-259` |
-| 采样主循环 `evaluate_single`：按 `self.sampler` 分支 | `solvers/difusco.py:304-336`（分支在 `:328-331`） |
+| 采样主循环 `evaluate_single`：按 `self.sampler` 分支 | `solvers/difusco.py:304-337`（分支在 `:328-331`） |
 | 节点问题的"解码后再加噪" `decode_x0` | `solvers/difusco.py:294-302` |
 | TSP 的"解码后再加噪" `decode_tour`（贪心拼回路 + 2-opt） | `solvers/difusco.py:281-292` |
 | 诊断 `trace_inputs`（环境变量 `CAM_TRACE_INPUTS=FILE`） | `solvers/difusco.py:261-279` |
