@@ -177,6 +177,33 @@ def test_5_real_ba_graphs():
     return '; '.join(out)
 
 
+def test_6_continuous_energy_is_multilinear_extension():
+    """DiffUCO / CAM evaluate and differentiate E at probabilities: E must be the multilinear extension (the
+    explicit-product formula) and its gradient must match autograd; the hard-count version had zero gradient on
+    the coverage term, so DiffUCO's loss only saw A * sum p and collapsed."""
+    graphs = graphs_(3)
+    g = batch_of(graphs)
+    torch.manual_seed(1)
+    p = torch.rand(g.num_nodes, 5, dtype=torch.float64)
+    p[::4, 0] = 1.0                                   # some exact 0/1 entries among continuous ones
+    p[1::5, 1] = 0.0
+    E, grad = env().energy_func(g, p, True)
+    err_e = 0.0
+    for k in range(5):
+        for gi, G in enumerate(graphs):
+            off = g.ptr[gi].item()
+            err_e = max(err_e, abs(E[gi, k].item() - brute_energy(G, p[off:off + G.number_of_nodes(), k].tolist())))
+    q = p.clone().requires_grad_(True)
+    Eq, _ = env().energy_func(g, q)
+    Eq.sum().backward()
+    err_g = (q.grad - grad).abs().max().item()
+    x = torch.randint(0, 2, (g.num_nodes, 4)).double()
+    xq = x.clone().requires_grad_(True)                  # 0/1 values on the autograd path: same energy
+    err_b = (env().energy_func(g, xq)[0] - env().energy_func(g, x)[0]).abs().max().item()
+    assert err_e < 1e-6 and err_g < 1e-6 and err_b < 1e-6 and q.grad.abs().sum() > 0, (err_e, err_g, err_b)
+    return f'max |E - brute| {err_e:.1e}, |grad - autograd| {err_g:.1e}, 0/1 via autograd path {err_b:.1e}'
+
+
 if __name__ == '__main__':
     tests = [(k, v) for k, v in list(globals().items()) if k.startswith('test_') and callable(v)]
     failed = 0
