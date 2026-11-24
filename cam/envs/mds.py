@@ -7,7 +7,8 @@ local minimum under single flips is a minimal dominating set. E is of high degre
 (each x_i appears at most once per monomial), so the energy change of flipping i is exactly
 (1 - 2 x_i) * dE/dx_i, as for the quadratic problems: RLSA and CAM's labels need no approximation.
 
-States are 0/1 (all training and sampling rollouts are). With c_j = x_j + sum_{k in N(j)} x_k the
+On 0/1 states (sampling rollouts, decoding, RLSA) the exact counts below are used; on probabilities (the DiffUCO
+and CAM losses) the multilinear extension (_multilinear). With c_j = x_j + sum_{k in N(j)} x_k the
 cover count of j, node j is uncovered iff c_j = 0, and at a 0/1 point
     dE/dx_i = A - B * ( [c_i - x_i = 0] + sum_{j in N(i)} [c_j - x_i = 0] ),
 the number of nodes that i alone would cover (x_i = 0) or alone covers (x_i = 1). Two neighbour sums
@@ -37,6 +38,8 @@ class Env(object):
 
     def energy_func(self, graph, solution, compute_grad=False):
         x = solution
+        if x.requires_grad or not ((x == 0) | (x == 1)).all():
+            return self._multilinear(graph, x, compute_grad)
         nb = self.nbr_sum(graph, x)
         c = x + nb
         unc = (c < 0.5).to(x.dtype)
@@ -48,6 +51,25 @@ class Env(object):
             own = (nb < 0.5).to(x.dtype)                      # [c_i - x_i = 0]
             alone = torch.where(x > 0.5, self.nbr_sum(graph, z1), self.nbr_sum(graph, z0))
             grad = self.A - self.B*(own + alone)
+        return energy, grad
+
+    def _multilinear(self, graph, p, compute_grad):
+        """E at probabilities p in [0, 1] (DiffUCO and CAM evaluate the energy at the flip-chain probabilities and
+        differentiate through it): the multilinear extension A sum p_i + B sum_i (1 - p_i) prod_{j in N(i)} (1 - p_j),
+        which equals E on 0/1 points. The products are exp of neighbour sums of log(1 - p) (1e-12 added where 1 - p = 0;
+        a clamp would zero the autograd gradient there), so a fully covered node contributes ~1e-12 instead of 0.
+        dE/dp_i = A - B (u_i + sum_{j in N(i)} (1 - p_j) u_j / (1 - p_i)), u_i = prod_{j in N(i)} (1 - p_j),
+        which reduces to the 0/1 formula of energy_func."""
+        q = 1 - p
+        lq = torch.log(q + (q < 1e-12).to(q.dtype).detach()*1e-12)   # offset, not clamp: keeps d/dp exact at p = 1
+        L = self.nbr_sum(graph, lq)
+        u = torch.exp(L)
+        energy = g_sum(self.A*p + self.B*(1 - p)*u, self._batch(graph, p.device))
+        grad = None
+        if compute_grad:
+            src, dst = graph.edge_index
+            w = torch.exp(lq[src] + L[src] - lq[dst])          # (1 - p_j) prod_{k in N(j), k != i} (1 - p_k)
+            grad = self.A - self.B*(u + torch.zeros_like(p).index_add_(0, dst, w))
         return energy, grad
 
     def _descend(self, graph, solution):

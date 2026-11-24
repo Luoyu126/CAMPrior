@@ -300,6 +300,12 @@ shows only the items below).
 64. `datasets/mcut.py` (also the MDS dataset): a node label is read from `anno/<stem>.npy` only where that file
     exists, otherwise `x` is zeros. MDS on the RB graphs reuses `/usr1/shengyuf/MIS/RB_small_*`, whose `anno/`
     holds MIS labels; supervised MDS (DIFUSCO) takes its labels from `--label_set` (`scripts/mds/ilp_labels.py`).
+65. `envs/mds.py` `energy_func` on probabilities (`_multilinear`): DiffUCO (and CAM) evaluate the energy at the
+    flip-chain probabilities and differentiate through it. The 0/1 version counts uncovered nodes with a threshold,
+    which has zero gradient, so DiffUCO's loss saw only `A * sum p`: it first emptied the set, then collapsed to flip
+    probability 0.5 (runs `20261123_diffuco_mds_ul`, first launch). Non-0/1 inputs (or inputs that require grad) now
+    use the multilinear extension `A sum p_i + B sum_i (1 - p_i) prod_{j in N(i)} (1 - p_j)`; 0/1 inputs keep the exact
+    counts, so decoding, RLSA and every DIFUSCO evaluation are unchanged. Test: `tests/test_mds.py` test 6.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
