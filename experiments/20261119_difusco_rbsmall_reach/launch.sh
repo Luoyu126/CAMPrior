@@ -14,12 +14,14 @@
 #   qR_dNall / qR_dNfpsM  diverse DiffUCO labels (cam/scripts/mis/diverse_labels.py): all unique largest of N DiffUCO
 #              samples per graph, or M of them by farthest-point sampling in Hamming distance; _long: 400 epochs.
 #   mkamis / mdiffuco  KaMIS / DiffUCO maximum sets, per graph equal counts (match_label_counts.py), random one per step
+#   mkamisfix  matched_kamis in the loader's node order (matched_kamis_loaderorder.pt); mkamis runs used the wrong order
 #   mcam       CAM (Shengyu's cam_d4) maximum sets of 1000 samples per graph, cut to matched_diffuco's count (fewer
 #              where CAM has fewer); mdiffucoc: matched_diffuco cut to mcam's per-graph count (count-matched control)
 #   *_long     400 epochs instead of 200 (any label mode); *_eN: N epochs
 #   *_soft     the same label set, but the target is the posterior mean over the set given x_t (--label_choice soft,
 #              cam/utils/label_sets.py posterior_mean): same optimum as random, lower-variance targets
 #   *_ft       fine-tune the round-R student (seed s) instead of training from scratch (AdamW 5e-5, 30 epochs)
+# <gpu> may be a list (e.g. 4,5,6,7): one process per GPU, 40 / #GPUs graphs each, so a step still sees 40 graphs.
 # Usage: bash experiments/20261119_difusco_rbsmall_reach/launch.sh <gpu> <rR_self|rR_union|rR_toprand>[_ft] [seed] [init ckpt for _ft]
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; EXP_NAME="$(basename "$EXP_DIR")"
@@ -43,6 +45,7 @@ case "$KIND" in
     t1000tau*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_typ/t1000_tau${KIND#t1000tau}.pt" --label_choice random) ;;
     s1000*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_strong/s1000_${KIND#s1000}.pt" --label_choice random) ;;
     c1far*|c1near*) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_cov/c1_${KIND#c1}.pt" --label_choice random) ;;
+    mkamisfix) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_kamis_loaderorder.pt --label_choice random) ;;
     mkamis|mdiffuco|mcam|mdiffucoc) LABEL=(--label_set "/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_${KIND#m}.pt" --label_choice random) ;;
     dtop) LABEL=(--label_set /usr0/home/shengyuf/yunyi/data/rb_small_ullabels/train_diffuco_all200_top.pt --label_choice random) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
@@ -58,11 +61,12 @@ export WANDB_DIR="$EXP_DIR" NCCL_IB_DISABLE=1 CAM_GRAPH_CACHE=/usr0/home/shengyu
 cam_require_gpu
 RUN=${EXP_NAME}_${MODE}_s${SEED}; OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; mkdir -p "$OUT"
 D=/usr1/shengyuf/MIS
+NPROC=$(( $(tr -cd , <<< "$GPU" | wc -c) + 1 )); (( 40 % NPROC == 0 )) || { echo "40 graphs per step need a GPU count dividing 40"; exit 1; }
 cd "$REPO/cam"
-nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_process_port $((29600 + GPU)) main.py \
+nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=$NPROC --main_process_port $((29600 + ${GPU%%,*})) main.py \
     --train_path $D/RB_small_train --valid_path $D/RB_small_valid --test_path $D/RB_small_test \
     --problem mis --valid_samples 64 --seed "$SEED" --method DIFUSCO --model EncodeProcessDecode \
-    --num_h 64 --num_l 8 --num_tp 50 --diffusion_schedule cosine --batch_size 40 \
+    --num_h 64 --num_l 8 --num_tp 50 --diffusion_schedule cosine --batch_size $((40 / NPROC)) \
     --optimizer AdamW "${OPT[@]}" --weight_decay 0.0001 --lr_scheduler cosine-decay \
     --patience 1000 --save_every_epoch --num_t 50 --num_k 20 --inference_schedule linear --num_workers 4 \
     --heat_lambda 0 --heat_until 0.5 --difusco_sampler renoise "${LABEL[@]}" "${INIT[@]}" \
