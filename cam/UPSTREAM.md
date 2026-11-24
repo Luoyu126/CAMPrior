@@ -306,6 +306,12 @@ shows only the items below).
     probability 0.5 (runs `20261123_diffuco_mds_ul`, first launch). Non-0/1 inputs (or inputs that require grad) now
     use the multilinear extension `A sum p_i + B sum_i (1 - p_i) prod_{j in N(i)} (1 - p_j)`; 0/1 inputs keep the exact
     counts, so decoding, RLSA and every DIFUSCO evaluation are unchanged. Test: `tests/test_mds.py` test 6.
+66. `scripts/mis/kamis_multi.py` wrote the sets in redumis' sorted node order, but `datasets/mis.py` indexes nodes
+    by the gpickle's insertion order (it realigns the anno label, upstream 1d3f4ae). On RB-small 98% of the sets in
+    `rb_small_kamis_multi/k128.pt` and `matched_kamis.pt` were not independent sets in the loader's order, so the
+    KaMIS arms of `20261119_difusco_rbsmall_reach` (q5_mkamis*) trained on scrambled labels. The script now permutes
+    the columns to the loader's order; `*_loaderorder.pt` are the old files permuted (same subsets). Every other MIS
+    label set (RLSA, DiffUCO, CAM samples, all built through the loader) checked valid.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

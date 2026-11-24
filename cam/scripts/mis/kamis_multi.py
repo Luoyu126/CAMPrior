@@ -4,6 +4,8 @@ label-set format of diverse_labels.py ({'files', 'sets', 'meta'}) for --label_ch
 Local addition, UPSTREAM.md item 58.
 
 On RB-[200-300] almost every seed returns a different maximum set (30-31 distinct of 32 on the first graphs).
+Sets are written in the node order of datasets.mis (G's insertion order), not the sorted order of redumis; files
+built before 11-24 used the sorted order (98% of their sets are not independent in the loader's order).
 
     python cam/scripts/mis/kamis_multi.py --graphs DIR --out FILE --k 128 --time_limit 0.2 --procs 60 \
         [--files_order LABELSET.pt]
@@ -49,6 +51,9 @@ def solve(job):
     e = torch.tensor(list(G.edges), dtype=torch.long)
     if len(e):
         assert not (x[:, e[:, 0]] & x[:, e[:, 1]]).any(), f'{stem}: not independent'
+    # redumis and the .result labels index nodes by sorted id; datasets.mis indexes them by G's insertion order
+    # (as it realigns the anno label), so the label sets must follow that order too
+    x = x[:, list(G.nodes())]
     z = x.sum(1)
     top = torch.unique(x[z == z.max()], dim=0)
     return os.path.basename(path), top
