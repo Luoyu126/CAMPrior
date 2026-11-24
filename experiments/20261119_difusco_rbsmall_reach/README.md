@@ -248,6 +248,8 @@ DiffUCO 自己在同一协议下换测试种子（`runs/scratch/dist_1119/run_du
 
 ## 8. 软标签的跨来源验证：KaMIS / DiffUCO × 随机抽 / 软目标（11-20 19:19 启动）
 
+> **11-24 作废说明：** A / B 两组用的 `matched_kamis.pt` 节点顺序错了，98% 的标签在加载器的顺序下不是独立集，所以 A / B 的数字和所有含 A / B 的差值都作废，第 9 节 CAM − KaMIS 同理。C / D 及 CAM 与 DiffUCO 的比较不受影响。详见 `docs/mis_rbsmall_label_sets.md` 第 5 节。
+
 - KaMIS 多解：redumis 每图 128 个种子（`cam/scripts/mis/kamis_multi.py`），保留不同的最大解，每图平均 66.9 个，大小 20.162。
 - 个数对齐（`cam/scripts/mis/match_label_counts.py`）：每图两种来源都随机保留同样多的解（取较少者），平均每图 42.1 个；
   KaMIS 20.162、组内平均 Hamming 18.9；DiffUCO 20.124、19.3。
