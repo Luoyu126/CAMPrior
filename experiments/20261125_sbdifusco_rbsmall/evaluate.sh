@@ -18,7 +18,7 @@ D=/usr1/shengyuf/MIS
 case "$SET" in anchor) TP=/usr0/home/shengyuf/yunyi/data/rb_small_valanchor ;; test) TP=$D/RB_small_test ;; val64) TP=/usr0/home/shengyuf/yunyi/data/rb_small_val64 ;; *) exit 1 ;; esac
 TAG="${SET}_${SAMPLER}_t${STEPS}_seed$SEED"
 test -f "$OUT/best.pt" || { echo "no best.pt in $OUT"; exit 1; }
-if [ "${PAIR_TRACE:-0}" = 1 ]; then export CAM_SB_PAIR_TRACE="$OUT/${TAG}_pairs.jsonl"; rm -f "$CAM_SB_PAIR_TRACE"; fi
+if [ "${PAIR_TRACE:-0}" = 1 ]; then export CAM_SB_PAIR_TRACE="$OUT/${TAG}_pairs.jsonl"; rm -f "${CAM_SB_PAIR_TRACE:?}"; fi
 cd "$REPO/cam" && CUDA_VISIBLE_DEVICES=$GPU "$CAM_PYTHON" main.py \
     --train_path $D/RB_small_train --valid_path $D/RB_small_valid --test_path "$TP" \
     --problem mis --valid_samples 64 --seed $SEED --method DIFUSCO --model EncodeProcessDecode --num_h 64 --num_l 8 \

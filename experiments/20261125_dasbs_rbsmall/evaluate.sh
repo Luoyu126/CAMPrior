@@ -18,7 +18,7 @@ D=/usr1/shengyuf/MIS
 case "$SET" in anchor) TP=/usr0/home/shengyuf/yunyi/data/rb_small_valanchor ;; test) TP=$D/RB_small_test ;; *) exit 1 ;; esac
 TAG="${SET}_t${STEPS}_seed$SEED"
 test -f "$OUT/best.pt" || { echo "no best.pt in $OUT"; exit 1; }
-rm -f "$OUT/${TAG}_raw.jsonl"
+rm -f "${OUT:?}/${TAG:?}_raw.jsonl"
 cd "$REPO/cam" && CAM_DASBS_RAW="$OUT/${TAG}_raw.jsonl" CUDA_VISIBLE_DEVICES=$GPU "$CAM_PYTHON" main.py \
     --train_path $D/RB_small_train --valid_path $D/RB_small_valid --test_path "$TP" \
     --problem mis --seed $SEED --method DASBS --model EncodeProcessDecodeTime2 --num_h 64 --num_l 8 \
