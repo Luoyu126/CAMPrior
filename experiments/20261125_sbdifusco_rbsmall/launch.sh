@@ -6,6 +6,10 @@
 # Modes:
 #   indep        independent coupling, one label drawn uniformly per step   (= q5_mkamisfix_long)
 #   indep_soft   independent coupling, soft target (posterior mean)         (= q5_mkamisfix_long_soft)
+#   sb_w<W>[_soft]  SB coupling with cost strength omega = W (--sb_coupling --sb_omega W), label drawn from the
+#                coupling (or the soft target with g); potentials from data/rb_small_sb/logg_mkamisfix_w<W>_K4194304.pt
+#                (scripts/sb/precompute_logg.py). sb_w0[_soft]: the SB code path with the independent coupling
+#                (regression check against indep[_soft], plan.md 1B criterion 4).
 # <gpu> may be a list (e.g. 4,5): one process per GPU, 40 / #GPUs graphs each.
 # Usage: bash experiments/20261125_sbdifusco_rbsmall/launch.sh <gpu> <mode> [seed]
 set -euo pipefail
@@ -16,6 +20,9 @@ LS=/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_kamis_loaderorder
 case "$MODE" in
     indep) LABEL=(--label_set "$LS" --label_choice random) ;;
     indep_soft) LABEL=(--label_set "$LS" --label_choice soft) ;;
+    sb_w*) W=${MODE#sb_w}; CH=random; if [[ "$W" == *_soft ]]; then CH=soft; W=${W%_soft}; fi
+        LABEL=(--label_set "$LS" --label_choice $CH --sb_coupling --sb_omega $W)
+        if [[ "$W" != 0 ]]; then LABEL+=(--sb_logg /usr0/home/shengyuf/yunyi/data/rb_small_sb/logg_mkamisfix_w${W}_K4194304.pt); fi ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
