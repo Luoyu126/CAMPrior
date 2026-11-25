@@ -319,6 +319,13 @@ shows only the items below).
     `solvers/difusco.py` by itself (item 69 wires it in). Derivations: `docs/20261125/math_route1.md`; test: `tests/test_sb_coupling.py`.
     `schedule_for_omega`, `sample_distances` and `sinkhorn_distances` are the GPU / float32 Monte Carlo Sinkhorn
     for real graphs (n ~ 250), checked against the float64 `sinkhorn`.
+68. `utils/dasbs_exact.py` (new, local): exact enumeration tools for the discrete adjoint SB sampler (DASBS, Guo et
+    al. 2026) on binary states with the MIS energy (route 2 of `docs/20261125/plan.md`): uniform-flip reference with
+    constant or log-linear schedule, Sinkhorn SB potentials, controller / corrector ratios, tabular ctrl-AM and
+    corr-DM maps, the alternation (IPF), and the exact law of the tau-leaping sampler. Small graphs (n <= 9) only,
+    for checking derivations; not used in training. Derivations: `docs/20261125/math_route2.md`; tests:
+    `tests/test_dasbs_exact.py`, `tests/test_sb_cross.py` (route 2 with a label-set target equals item 67);
+    experiments: `scripts/sb/m2_experiments.py`.
 69. `solvers/difusco.py` + `main.py`: `--sb_coupling --sb_omega w [--sb_logg file]`, the Schrödinger-bridge coupling
     of item 67 in DIFUSCO training and sampling (node problems; needs `--heat_lambda 0` and, for training,
     `--label_choice random|soft` with `--label_set`). The diffusion's Q_bar is replaced by the SB reference with
