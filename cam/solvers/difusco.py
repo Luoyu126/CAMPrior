@@ -1,3 +1,4 @@
+import math
 from .meta_solver import SLSolver
 from utils.diffusion_schedulers import *
 from utils.heated_forward import HeatedForward
@@ -11,6 +12,20 @@ import os
 import torch
 from torch import nn
 import torch.nn.functional as F
+
+def cache_posterior_mean(xt, Z, Y, a_t, a_T):
+    """Stage 1D soft target: E[y | x_t] under the empirical coupling of the cached pairs (z_j, y_j) (math_route1.md
+    §12.4): weights ∝ K_{a_t}(x_t | y_j) K_{a_T / a_t}(z_j | x_t) / K_{a_T}(z_j | y_j), the reference bridge density of
+    x_t given the pair (Markov property of the per-bit reference). xt (n,), Z, Y (J, n) -> (n,) float64."""
+    x = xt.view(1, -1).double()
+    Z, Y = Z.double(), Y.double()
+    d = (Z != Y).sum(1).double()                                     # Hamming(z_j, y_j)
+    n = Y.shape[1]
+    log_k = (n - d) * math.log((1 + a_T) / 2) + d * math.log((1 - a_T) / 2)
+    lw = sb_coupling.log_kernel(x, Y, a_t)[0] + sb_coupling.log_kernel(Z, x, min(1.0, a_T / a_t))[:, 0] - log_k
+    w = torch.softmax(lw, 0)
+    return w @ Y.double()
+
 
 class DIFUSCO(SLSolver):
     def __init__(self, args):
@@ -52,11 +67,29 @@ class DIFUSCO(SLSolver):
             assert self.sampler in ('posterior', 'renoise', 'renoise_decode'), self.sampler
             self.sb_omega = float(args.sb_omega)
             self.sb_a = sb_coupling.schedule_for_omega(self.diffusion.Q_bar, self.sb_omega)
+            # stage 1D (math_route1.md §12): --sb_reverse is the backward network of the learned coupling. It predicts
+            # the start z from x_k on the reversed reference, signals b_k = a_T / a_{T-k} (b_0 = 1, b_T = a_T, the same
+            # endpoint signal), with the roles of the two ends swapped: its "labels" are starts, its "start" a label.
+            self.sb_reverse = bool(getattr(args, 'sb_reverse', False))
+            if self.sb_reverse:
+                self.sb_a = self.sb_a[-1] / self.sb_a.flip(0)
             self.diffusion.Q_bar = sb_coupling.signal_to_Q_bar(self.sb_a, as_numpy=True)
             self.sb_z = None
             self.sb_log_g = None
-            if args.do_train:
+            # stage 1D: training pairs (start, label) per graph from a cache written by the other network
+            # (scripts/sb/imf_cache.py) instead of the closed-form coupling
+            self.sb_cache = None
+            if args.do_train and getattr(args, 'sb_pair_cache', None):
+                d = torch.load(args.sb_pair_cache, weights_only=False)
+                files = [os.path.basename(f) for f in sorted(glob.glob(args.train_path + '/*gpickle'))]
+                n_g = len(d['labels'])
+                assert d['files'][:n_g] == files[:n_g], 'pair cache does not match the graphs'
+                self.sb_cache = (d['starts'], d['labels'])
+                assert self.label_choice in ('random', 'soft') and self.graph_weights is None
+            elif args.do_train:
                 assert self.label_sets is not None and self.label_choice in ('random', 'soft')
+                assert not self.sb_reverse, '--sb_reverse trains on a pair cache only'
+            if args.do_train and self.sb_cache is None:
                 assert self.graph_weights is None
                 if self.sb_omega > 0:
                     d = torch.load(args.sb_logg, weights_only=False)
@@ -228,7 +261,7 @@ class DIFUSCO(SLSolver):
             t_nodes = torch.from_numpy(time).long().to(solution_0.device)
             solution_t = self.heated.sample(A, graph.b, solution_0.float().view(-1, 1), t_nodes)
         soft = None
-        if self.label_sets is not None and self.label_choice == 'soft':
+        if (self.label_sets is not None or (self.sb and self.sb_cache is not None)) and self.label_choice == 'soft':
             soft = self.sb_soft_targets(graph, solution_t, time) if self.sb else self.soft_targets(graph, solution_t, time)
         time = torch.from_numpy(time).float().to(self.accelerator.device)
         target = solution_0.long().squeeze(1)          
@@ -266,6 +299,17 @@ class DIFUSCO(SLSolver):
         idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
         a_end = self.sb_a[-1].item()
         ys, xs = [], []
+        if self.sb_cache is not None:   # stage 1D: a cached (start, label) pair of the learned coupling
+            self.sb_drawn = []
+            for g, i in enumerate(idx):
+                Z, Y = self.sb_cache[0][int(i)], self.sb_cache[1][int(i)]
+                assert Y.shape[1] == ptr[g + 1] - ptr[g], 'pair cache does not match the graph size'
+                j = torch.randint(Y.shape[0], (1,)).item()
+                y, z = Y[j].to(dev).double(), Z[j].to(dev).double()
+                t = int(time[ptr[g]])
+                xs.append(torch.bernoulli(sb_coupling.bridge_prob1(y, z, self.sb_a[t].item(), a_end)))
+                ys.append(y)
+            return torch.cat(ys).view_as(graph.x).to(graph.x.dtype), torch.cat(xs).view(-1, 1).float()
         for g, i in enumerate(idx):
             s = self.label_sets[int(i)].to(dev)
             assert s.shape[1] == ptr[g + 1] - ptr[g], 'label set does not match the graph size'
@@ -285,6 +329,10 @@ class DIFUSCO(SLSolver):
         idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
         for g, i in enumerate(idx):
             a_t = self.sb_a[int(time[ptr[g]])].item()
+            if self.sb_cache is not None:
+                Z, Y = self.sb_cache[0][int(i)].to(dev), self.sb_cache[1][int(i)].to(dev)
+                out.append(cache_posterior_mean(xt[ptr[g]:ptr[g + 1]], Z, Y, a_t, self.sb_a[-1].item()).float())
+                continue
             out.append(sb_coupling.posterior_mean(xt[ptr[g]:ptr[g + 1]][None], self.label_sets[int(i)].to(dev),
                                                   self.sb_log_g[int(i)], a_t)[0].float())
         return torch.cat(out)
@@ -397,6 +445,17 @@ class DIFUSCO(SLSolver):
         sol = sol.float()
         return sol * x0 if self.sampler == 'renoise_feasible' else sol
 
+    def reverse_starts(self, graph, solution):
+        """Stage 1D, --sb_reverse at evaluation: every chain starts from a label of the graph drawn uniformly from
+        the label set CAM_SB_STARTS (dataset index = graph.idx), the true pi1."""
+        if not hasattr(self, '_rev_sets'):
+            d = torch.load(os.environ['CAM_SB_STARTS'], weights_only=False)
+            self._rev_sets = d['sets']
+        S = self._rev_sets[int(torch.as_tensor(graph.idx).reshape(-1)[0])].to(solution.device)
+        assert S.shape[1] == solution.shape[0], 'label set does not match the graph'
+        pick = torch.randint(S.shape[0], (solution.shape[1],), device=solution.device)
+        return S[pick].T.float().contiguous()
+
     def write_pair_trace(self, graph, start, final):
         """Append one JSON line per graph (env CAM_SB_PAIR_TRACE=FILE, UPSTREAM.md item 69): the graph's dataset
         index, and per chain its start z and decoded final solution as hex bit strings (node order of the loader)."""
@@ -422,9 +481,11 @@ class DIFUSCO(SLSolver):
                 graph.A = A
                 num_nodes = graph.num_nodes
                 solution = torch.randint(0,2,size=(num_nodes,self.num_k), device=self.accelerator.device, dtype=torch.float)
-                if os.environ.get('CAM_SB_PAIR_TRACE'):   # diagnostic (UPSTREAM.md item 69): chains 2j, 2j+1
-                    assert self.num_k % 2 == 0           # share their start
-                    solution[:, 1::2] = solution[:, 0::2]
+                if os.environ.get('CAM_SB_PAIR_TRACE') and not os.environ.get('CAM_SB_TRACE_NOSHARE'):
+                    assert self.num_k % 2 == 0           # diagnostic (UPSTREAM.md item 69): chains 2j, 2j+1
+                    solution[:, 1::2] = solution[:, 0::2]   # share their start
+                if self.sb and self.sb_reverse:          # stage 1D backward sampler: start from labels of the graph
+                    solution = self.reverse_starts(graph, solution)
                 start = solution.clone()
                 if self.sb:
                     self.sb_z = solution.clone()   # the noise end z of every chain (sampler B bridges back to it)
@@ -444,7 +505,9 @@ class DIFUSCO(SLSolver):
     
             best_energy, final = self.problem.evaluate(graph, solution)
             if self.solution_type == 'node' and os.environ.get('CAM_SB_PAIR_TRACE'):
-                self.write_pair_trace(graph, start, final)
+                # the backward sampler ends on a start z, not a solution: record the raw sample, not the decoding
+                self.write_pair_trace(graph, start, torch.bernoulli(solution.clamp(0, 1)) if self.sb and self.sb_reverse
+                                      else final)
             if trace is not None:
                 self.trace_inputs(graph, trace, final.float())
             best_energies.append(best_energy)

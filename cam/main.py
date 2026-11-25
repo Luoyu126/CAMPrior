@@ -76,6 +76,8 @@ def main():
     parser.add_argument('--sb_coupling', action='store_true', help='DIFUSCO: SB coupling between Bernoulli(0.5)^n and the label set')
     parser.add_argument('--sb_omega', type=float, default=0.0, help='SB cost strength omega = log((1+a_T)/(1-a_T)); 0 = independent')
     parser.add_argument('--sb_logg', type=str, default=None, help='scripts/sb/precompute_logg.py output for --sb_omega (training)')
+    parser.add_argument('--sb_pair_cache', type=str, default=None, help='stage 1D: (start, label) pairs per graph (scripts/sb/imf_cache.py) instead of the closed-form coupling')
+    parser.add_argument('--sb_reverse', action='store_true', help='stage 1D: backward network (predicts the start; reversed schedule; starts from labels of CAM_SB_STARTS at evaluation)')
     # local addition (UPSTREAM.md item 71): cross-graph DASBS (--method DASBS)
     parser.add_argument('--dasbs_schedule', type=str, default='log_linear', choices=['constant', 'log_linear'])
     parser.add_argument('--dasbs_gamma', type=float, default=1.0, help='reference flip rate gamma_t / 2 per bit')

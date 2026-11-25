@@ -342,6 +342,12 @@ shows only the items below).
     Size-weighted pi1 (stage 1E): `precompute_logg.py --weight_temp T` targets pi1(m) ∝ exp(|s_m| / T); with
     `--omega 0` it writes log g = log pi1, which `--sb_omega 0 --sb_logg file` reads (default without the file: uniform
     pi1 as before). Checks: `tests/test_sb_weights.py`.
+    Learned coupling (stage 1D, math_route1.md §12): `--sb_pair_cache file` trains on cached (start, label) pairs of
+    the other network instead of the closed-form coupling (soft target: the exact posterior under the empirical
+    coupling of the cached pairs); `--sb_reverse` is the backward network (reversed signals b_k = a_T / a_{T-k},
+    predicts the start; at evaluation chains start from labels of `CAM_SB_STARTS=<label set>` and the pair trace
+    records the raw end sample). `CAM_SB_TRACE_NOSHARE=1` keeps the chains' starts independent in the pair trace.
+    Checks: `tests/test_difusco_sb_reverse.py`.
 70. `utils/dasbs.py` (new, local): the network-independent parts of single-graph DASBS (route 2, stage 2A of
     `docs/20261125/plan.md`), ported from the DASBS worktree (`sb_worktrees/DASBS/mis_sb`, used for the 11-15
     small-graph runs): MIS energy and exact flip deltas, uniform-flip reference and its bridge, the ratio Bregman
