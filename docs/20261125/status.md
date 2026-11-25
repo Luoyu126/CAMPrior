@@ -14,7 +14,7 @@
 | 1A 配对分析 | 通过 | 11-25 09:14 | 11-25 09:45 | K = 2^22 时标签边缘最大相对误差 ≤ 1.10%（< 2%）；4000 张图预计算最多 18.3 分钟；给 1C 的 ω = 0.35、0.5、1.0（有效标签数中位数 18.3、11.7、4.1）；阴性出口未触发 | `experiments/20261125_sbdifusco_rbsmall_coupling/README.md` |
 | 1B 实现与回归测试 | 进行中 | 11-25 09:20 | | 标准 1（单元测试 + 原有 10 个测试文件全部通过）、2（ω = 0 时 200 步损失与现有软目标逐步相同，差 0）、3（两种采样器代码路径终点等于 π1，卡方检验通过）已满足；标准 4 的回归训练进行中 | `experiments/20261125_sbdifusco_rbsmall/README.md`、`cam/scripts/sb/check_difusco_sb_sampler.py` |
 | 1C 只用多解，扫 ω | 进行中 | 11-25 09:35 | | 第一个种子的 3 个 ω 训练中 | `experiments/20261125_sbdifusco_rbsmall/` |
-| 1D 学出来的配对 | 未开始 | | | | |
+| 1D 学出来的配对 | 进行中 | 11-25 10:35 | | 前置完成：CSBM 已下载，要点写入 math_route1.md §12；验收标准 1（表格 D-IMF 收敛到 Sinkhorn 配对，TV < 1e-3）已满足，6 个实例全部通过；训练部分要等 1C 选出 ω | `docs/20261125/math_route1.md` §12、`cam/utils/sb_imf.py`、`cam/tests/test_sb_imf.py` |
 | 1E 标签变体 | 进行中 | 11-25 10:28 | | 前置分析完成：选定扰动为"翻转 10% 的位后贪心修复成极大独立集"；加权 π1 的代码与测试已提交；训练要等 1C 选出 ω | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/stats_*.txt`、`cam/scripts/sb/perturb_labels.py`、`cam/tests/test_sb_weights.py` |
 | 1F 加固 | 未开始 | | | | |
 | 2A 迁移单图 DASBS | 通过 | 11-25 09:55 | 11-25 10:25 | 迁移后 16 项测试通过；15 个阶段后总变差 path6 0.092 ± 0.021、cycle8 0.135 ± 0.023（标准 0.09 / 0.14 ± 0.05），path6 三个种子与 11-15 完全相同；修正项改在 t = 0 回归：0.085 / 0.161，差别在种子间波动之内 | `experiments/20261125_dasbs_smallgraph/README.md` |
@@ -75,3 +75,19 @@
 - 11-25 10:30：加权 π1 的支持：π1(m) ∝ exp(|s_m| / T)。ω = 0 时 log g = log π1（`precompute_logg.py --omega 0 --weight_temp T`，训练用 `--sb_omega 0 --sb_logg`）；ω > 0 时是同一个 Sinkhorn、换目标边缘。测试 `cam/tests/test_sb_weights.py` 3 项通过（精确 Sinkhorn 边缘误差 < 1e-12，蒙特卡洛版本 < 1e-5 相对误差，ω = 0 时软目标等于以 π1 为先验的贝叶斯后验，误差 < 1e-12；两个反向对照偏离 > 1e-3）。
 - 11-25 10:35：下载 CSBM（`ref/lit_pdfs/2502.01416.pdf` 与 `.txt`），1D 前置的文献要点由子 agent 整理中。
 - 11-25 10:35：1C 评测准备：`eval_queue.sh`（按列表依次评测，已有结果的跳过）、`evaluate.sh` 增加 `val64`（验证集前 64 张，配 KaMIS 多解做起点依赖分析）和 `PAIR_TRACE=1`（成对起点追踪，也用来算单样本平均）。基线第一种子的 checkpoint 以符号链接放在 `runs/experiments/20261125_sbdifusco_rbsmall/baseline_indep{,_soft}_s0/`，不往 11-19 的目录里写文件。
+- 11-25 10:40–10:48：1D 前置。
+  - 精确的表格 D-IMF（`cam/utils/sb_imf.py`）在 6 个小实例上都收敛到 Sinkhorn 配对（TV < 1e-3；ω ≤ 1 时 4–19 次投影，ω = 2、3 时 43、70 次）。到 SB 的 KL 单调不增。
+  - 两个反向对照都偏离：用前向边缘代替桥时 TV > 0.02；换一个 ω 时差距 > 1e-2。
+  - 测试 `cam/tests/test_sb_imf.py` 12 项通过。
+  - 文献要点写入 math_route1.md §12。两篇论文都没有"两个方向同时训练"，1D 采用"交叉喂入"（§12.4，属于我们的推断）。
+- 11-25 10:40–10:47：2C 代码准备（2B 未通过前不开训练）。
+  - **问题**：RB-small 图的度数最高约 70，初期随机 rollout 的 ΔH 可到 −80，τ = 0.1 时比值 exp(−ΔH/τ) 在 float64 中溢出。CPU 检查：从头训练时 16 个控制器批次全部溢出。
+  - **因此 2C 的温度不能照搬 DiffUCO 的 0.1 → 0**，改为从 1 线性退到 0.05。这是方法本身的限制（目标是 exp(−H/τ)，τ = 0 没有定义），不是放宽标准。
+  - **新增选项**（默认关闭，2B 不受影响）：
+    - 控制器输出除以 τ；
+    - 损失按 max(1, 预测比值) 归一，驻点不变，有测试；
+    - 溢出批次跳过并计数，日志里报告比例；
+    - 参数 EMA 0.999。
+  - **评测**额外记录采样器原始终点的可行比例和大小（解码前后）。
+  - 测试 `cam/tests/test_dasbs_solver.py` 7 项通过。
+  - 启动和评测脚本已提交：`experiments/20261125_dasbs_rbsmall/`。
