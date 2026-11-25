@@ -18,7 +18,7 @@
 | 1E 标签变体 | 未开始 | | | | |
 | 1F 加固 | 未开始 | | | | |
 | 2A 迁移单图 DASBS | 通过 | 11-25 09:55 | 11-25 10:25 | 迁移后 16 项测试通过；15 个阶段后总变差 path6 0.092 ± 0.021、cycle8 0.135 ± 0.023（标准 0.09 / 0.14 ± 0.05），path6 三个种子与 11-15 完全相同；修正项改在 t = 0 回归：0.085 / 0.161，差别在种子间波动之内 | `experiments/20261125_dasbs_smallgraph/README.md` |
-| 2B 跨图共享，小图验证 | 未开始 | | | | |
+| 2B 跨图共享，小图验证 | 进行中 | 11-25 10:15 | | 标准 1（memoryless 特例与 M2 一致）已在单元测试中满足；三组训练（sb、ml、nocorr）在 CPU 上进行中 | `experiments/20261125_dasbs_crossgraph/`、`cam/tests/test_dasbs_solver.py` |
 | 2C RB-small 训练 | 未开始 | | | | |
 | R 总报告 | 未开始 | | | | |
 
@@ -32,7 +32,9 @@
 | 1C ω = 0.35 种子 0（sb_w0.35_soft_s0） | 1689459 | 3 | 同目录 `..._sb_w0.35_soft_s0/train.log` | 11-25 13:45 |
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 14:00 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
-| 验证集前 64 张图的 KaMIS 多解（1C 的起点依赖分析用） | 1708059 | 无（CPU 16 进程） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/val64_kamis.log` | 11-25 11:00 |
+| 2B sb：log-linear α = 0.5，带修正项，种子 0 | 2415828 | 无（CPU 8 线程） | `runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_sb_s0/train.log` | 11-25 12:50 |
+| 2B ml：memoryless（α = 0），无修正项，种子 0 | 2415840 | 无（CPU 8 线程） | 同目录 `..._ml_s0/train.log` | 11-25 12:50 |
+| 2B nocorr：α = 0.5 但不用修正项（对照），种子 0 | 2415852 | 无（CPU 8 线程） | 同目录 `..._nocorr_s0/train.log` | 11-25 12:50 |
 
 ## 待用户确认
 
@@ -61,3 +63,5 @@
   - 2C：标签在对数空间算、float64、不截断；报告原始终点可行比例与解码前后结果；阶段数和起点分布要当作待验证的量（DASBS 低温下不用均匀 μ）；模型参数 EMA 与样本缓冲区参照 DASBS 附录 C。
 - 11-25 10:10–10:25：2A 复现完成，通过。
 - 11-25 10:15–10:35：2B 代码完成并提交：`cam/solvers/dasbs.py`（`--method DASBS`，UPSTREAM.md 第 71 条）、小图族生成 `cam/scripts/sb/gen_small_graphs.py`（数据在 `/usr0/home/shengyuf/yunyi/data/sb_small/`：训练 2000、验证 64、留出测试 64，n = 8–12；另有 6 对 1-WL 不可区分的图）、精确评测 `cam/scripts/sb/dasbs_exact_eval.py`（逐步传播采样器的精确分布，不抽样）。测试 `cam/tests/test_dasbs_solver.py` 5 项通过，含 2B 标准 1（memoryless + 修正项恒为 1 时与 M2 的特例一致）。
+- 11-25 10:25：验证集前 64 张图的 KaMIS 多解完成（`/usr0/home/shengyuf/yunyi/data/rb_small_sb/val64_kamis_k128.pt`，平均每图 69.8 个解，大小 20.547，按加载顺序）。
+- 11-25 10:25：启动 2B 三组训练（48 个 epoch × 125 次迭代 = 20 个阶段）。GPU 已有 8 张在用（上限），所以放在 CPU 上。提交 1C 的配对比较脚本 `paired.py` 与评测队列 `eval_queue.sh`。
