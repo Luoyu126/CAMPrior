@@ -9,7 +9,13 @@
 #     here the regression target is exp(-dH / tau) and with random early rollouts on RB-small (degree up to ~70,
 #     -dH up to ~80) every controller batch overflows at tau = 0.1 (CPU check, 16 of 16 batches), so training must
 #     start hot; tau = 0 is not defined for this target.
-#   - 50 tau-leaping steps in training rollouts (DiffUCO trains 6 steps of a time-free flip kernel), as in evaluation.
+#   - training rollouts: NUM_TP tau-leaping steps (default 10; DiffUCO trains with 6 steps of a time-free flip kernel);
+#     evaluation 50 steps (and 10). With 50 training steps a parameter update took 4.1 s (~46 GPU-h for 400 epochs,
+#     over the 24 GPU-h cap of plan.md 2C): the rollouts are ~80% of the cost.
+#   - REPLICAS bridge time points per (x0, x1) pair (default 2): with 4, the controller pass over 10 chains x 4
+#     replicas of a 40-graph batch ran out of the 10.5 GB GPU memory. Only the variance of the loss changes.
+#     Every mini-batch is one optimizer step (cam/solvers/meta_solver.py train), so the mini-batch stays at 10 chains:
+#     one update per rollout, 100 per epoch.
 #   - controller output scaled by 1 / tau, loss terms divided by max(1, Phi), overflowing batches skipped and counted,
 #     parameter EMA 0.999 for evaluation (cam/solvers/dasbs.py docstring).
 # Modes:
@@ -22,7 +28,7 @@ set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
 GPU=$1; MODE=$2; SEED=${3:-0}
-EPOCHS=${EPOCHS:-400}; N_ANNEAL=${N_ANNEAL:-300}; TAU0=${TAU0:-1.0}; TAU1=${TAU1:-0.05}
+EPOCHS=${EPOCHS:-400}; NUM_TP=${NUM_TP:-10}; REPLICAS=${REPLICAS:-2}; N_ANNEAL=${N_ANNEAL:-300}; TAU0=${TAU0:-1.0}; TAU1=${TAU1:-0.05}
 case "$MODE" in
     sb_a*) A=${MODE#sb_a}; REF=(--dasbs_alpha "$A" --dasbs_stage 200,100) ;;
     ml) REF=(--dasbs_alpha 0 --dasbs_stage 300,0) ;;
@@ -40,10 +46,10 @@ nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_pro
     --train_path $D/RB_small_train --valid_path $D/RB_small_valid --test_path $D/RB_small_test \
     --problem mis --valid_samples 64 --seed "$SEED" --method DASBS --model EncodeProcessDecodeTime2 \
     --num_h 64 --num_l 8 --samples_per_epoch 4000 --batch_size 40 --num_kp 10 --mini_batch_size 10 \
-    --inner_loop_steps 1 --num_tp 50 --num_t 50 --num_k 20 --num_workers 4 \
+    --inner_loop_steps 1 --num_tp $NUM_TP --num_t 50 --num_k 20 --num_workers 4 \
     --optimizer RAdam --lr 0.001 --grad_clip 1 --lr_scheduler cosine-decay --beta 1.2 \
     --epochs $EPOCHS --N_anneal $N_ANNEAL --tau0 $TAU0 --tau1 $TAU1 --patience 1000 --save_every_epoch \
-    --dasbs_schedule log_linear --dasbs_gamma 1 "${REF[@]}" --dasbs_replicas 4 --dasbs_corrector_time zero \
+    --dasbs_schedule log_linear --dasbs_gamma 1 "${REF[@]}" --dasbs_replicas $REPLICAS --dasbs_corrector_time zero \
     --dasbs_grid quadratic --dasbs_ctrl_scale tau --dasbs_loss_norm pred --dasbs_skip_overflow --dasbs_ema 0.999 \
     --do_train --save_dir "$OUT" --wandb_name SLVUL --wandb_run_name "$RUN" > "$OUT/train.log" 2>&1 &
 echo "$RUN pid $! gpu $GPU"
