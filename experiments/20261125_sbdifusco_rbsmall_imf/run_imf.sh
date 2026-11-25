@@ -17,7 +17,7 @@ REPO="$(cd "$EXP_DIR/../.." && pwd)"
 GF=$1; GB=$2; W=$3; SEED=${4:-0}
 E0=${E0:-100}; E=${E:-50}; L=${L:-3}; J=${J:-16}
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
-export CAM_WANDB=1
+export CAM_WANDB=${CAM_WANDB:-1}   # CAM_WANDB=0 for a smoke test
 source "$REPO/cam/scripts/env.sh"
 export WANDB_DIR="$EXP_DIR" CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs
 D=/usr1/shengyuf/MIS
