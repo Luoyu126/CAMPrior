@@ -1,9 +1,12 @@
 #!/bin/bash
 # Evaluate best.pt of a run with the test protocol (num_t steps x 20 chains, greedy decoding, best of 20) on either
 # the validation anchor (validation graphs 64-499 in loader order, 436 graphs; data/rb_small_valanchor holds symlinks)
-# or the 1000 test graphs. Selection decisions use the anchor only. wandb off.
+# or the 1000 test graphs, or val64 (the first 64 validation graphs, data/rb_small_val64, for the start-dependence
+# analysis with their KaMIS multi-solutions). Selection decisions use the anchor only. wandb off.
+# With PAIR_TRACE=1 in the environment, chains 2j and 2j+1 share their start and <run dir>/<tag>_pairs.jsonl records
+# starts and decoded finals (CAM_SB_PAIR_TRACE, UPSTREAM.md item 69; analysed by cam/scripts/sb/start_dependence.py).
 # Output: <run dir>/<set>_<sampler>_t<steps>_seed<N>{.log,_result.txt,_result.txt.per_graph.csv}.
-# Usage: bash experiments/20261125_sbdifusco_rbsmall/evaluate.sh <gpu> <run dir> <anchor|test> <sampler> <steps> <seed> [extra flags]
+# Usage: bash experiments/20261125_sbdifusco_rbsmall/evaluate.sh <gpu> <run dir> <anchor|test|val64> <sampler> <steps> <seed> [extra flags]
 set -uo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
@@ -12,9 +15,10 @@ source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 source "$REPO/cam/scripts/env.sh"   # CAM_WANDB unset: wandb disabled
 export CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs
 D=/usr1/shengyuf/MIS
-case "$SET" in anchor) TP=/usr0/home/shengyuf/yunyi/data/rb_small_valanchor ;; test) TP=$D/RB_small_test ;; *) exit 1 ;; esac
+case "$SET" in anchor) TP=/usr0/home/shengyuf/yunyi/data/rb_small_valanchor ;; test) TP=$D/RB_small_test ;; val64) TP=/usr0/home/shengyuf/yunyi/data/rb_small_val64 ;; *) exit 1 ;; esac
 TAG="${SET}_${SAMPLER}_t${STEPS}_seed$SEED"
 test -f "$OUT/best.pt" || { echo "no best.pt in $OUT"; exit 1; }
+if [ "${PAIR_TRACE:-0}" = 1 ]; then export CAM_SB_PAIR_TRACE="$OUT/${TAG}_pairs.jsonl"; rm -f "$CAM_SB_PAIR_TRACE"; fi
 cd "$REPO/cam" && CUDA_VISIBLE_DEVICES=$GPU "$CAM_PYTHON" main.py \
     --train_path $D/RB_small_train --valid_path $D/RB_small_valid --test_path "$TP" \
     --problem mis --valid_samples 64 --seed $SEED --method DIFUSCO --model EncodeProcessDecode --num_h 64 --num_l 8 \
