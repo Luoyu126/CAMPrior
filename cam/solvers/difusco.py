@@ -69,6 +69,14 @@ class DIFUSCO(SLSolver):
                     assert len(self.sb_log_g) >= len(self.label_sets)
                     for g_, s_ in zip(self.sb_log_g, self.label_sets):
                         assert g_.shape[0] == s_.shape[0]
+                elif args.sb_logg:   # independent coupling with a weighted pi1 (stage 1E): log g = log pi1 from the file
+                    d = torch.load(args.sb_logg, weights_only=False)
+                    assert d['omega'] == 0 and d['label_set'] == args.label_set, args.sb_logg
+                    files = [os.path.basename(f) for f in sorted(glob.glob(args.train_path + '/*gpickle'))]
+                    assert d['files'][:len(self.label_sets)] == files[:len(self.label_sets)], 'log g file does not match'
+                    self.sb_log_g = d['log_g']
+                    for g_, s_ in zip(self.sb_log_g, self.label_sets):
+                        assert g_.shape[0] == s_.shape[0]
                 else:   # independent coupling (up to the ~1e-6 signal the cosine table keeps at T): g = pi1, uniform
                     self.sb_log_g = [torch.zeros(s_.shape[0], dtype=torch.float64) for s_ in self.label_sets]
 

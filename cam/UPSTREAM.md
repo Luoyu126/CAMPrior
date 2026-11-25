@@ -339,6 +339,9 @@ shows only the items below).
     problems, even `--num_k`): chains 2j and 2j+1 share their start, and one JSON line per graph records the dataset
     index, the starts and the decoded finals (hex bit strings) for `scripts/sb/start_dependence.py`. Checks:
     `scripts/sb/check_difusco_sb_sampler.py` (both samplers end on pi1 with an exact tabular posterior).
+    Size-weighted pi1 (stage 1E): `precompute_logg.py --weight_temp T` targets pi1(m) ∝ exp(|s_m| / T); with
+    `--omega 0` it writes log g = log pi1, which `--sb_omega 0 --sb_logg file` reads (default without the file: uniform
+    pi1 as before). Checks: `tests/test_sb_weights.py`.
 70. `utils/dasbs.py` (new, local): the network-independent parts of single-graph DASBS (route 2, stage 2A of
     `docs/20261125/plan.md`), ported from the DASBS worktree (`sb_worktrees/DASBS/mis_sb`, used for the 11-15
     small-graph runs): MIS energy and exact flip deltas, uniform-flip reference and its bridge, the ratio Bregman
