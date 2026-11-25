@@ -36,6 +36,7 @@
 | 1E 扰动标签集构造：多解 + 扰动（单解 + 扰动已完成） | 2442545 | 无（CPU） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/mkamis_repair10.log` | 11-25 12:40 |
 | 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 13:45–14:10 结束，评测各约 20 分钟 |
 | 2B 自动接续：各 run 写出 epoch_0047.pt 后跑精确评测（test、valid、wl 三组并行，各 4 线程，CPU） | 2583343 | — | `runs/experiments/20261125_dasbs_crossgraph/after_train.log`；结果 `exact_<set>_epoch_0047.jsonl` | 12:50 开始，约 1 小时，~13:50 |
+| 1E 势的预先计算（ω 未定，先算 0.35/0.5/1.0 三个候选；单解 + 扰动 等权/T=1/T=0.5，k128 等权） | 2584159、2584160、2584161 | 0、1、2（与训练共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_spec_w*.log` | 约 11:50 |
 | 2B sb：log-linear α = 0.5，带修正项，种子 0 | 2415828 | 无（CPU 8 线程） | `runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_sb_s0/train.log` | 11-25 12:50 |
 | 2B ml：memoryless（α = 0），无修正项，种子 0 | 2415840 | 无（CPU 8 线程） | 同目录 `..._ml_s0/train.log` | 11-25 12:50 |
 | 2B nocorr：α = 0.5 但不用修正项（对照），种子 0 | 2415852 | 无（CPU 8 线程） | 同目录 `..._nocorr_s0/train.log` | 11-25 12:50 |
@@ -104,3 +105,4 @@
   - 单解 + 扰动标签集完成：每图平均 27.5 个，平均大小 19.05；按大小加权后，T = 1 时 19.69，T = 0.5 时 19.97。
   - ω = 0 的加权势已算好（`logg_single_w0_T{1,0.5}.pt`）。
   - 启动脚本与 README（含扰动分析表）已提交：`experiments/20261125_sbdifusco_rbsmall_labelvar/`。
+- 11-25 11:10：2B 评测脚本 `experiments/20261125_dasbs_crossgraph/evaluate.sh`（预先指定最后一个 epoch 的 checkpoint，不做选择），训练结束后自动跑。1E 的 ω > 0 势在 1C 出结果前先把三个候选都算上，省去关键路径上的等待；选定 ω 后其余两个不用。
