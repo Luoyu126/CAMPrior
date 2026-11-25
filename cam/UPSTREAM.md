@@ -339,6 +339,13 @@ shows only the items below).
     problems, even `--num_k`): chains 2j and 2j+1 share their start, and one JSON line per graph records the dataset
     index, the starts and the decoded finals (hex bit strings) for `scripts/sb/start_dependence.py`. Checks:
     `scripts/sb/check_difusco_sb_sampler.py` (both samplers end on pi1 with an exact tabular posterior).
+70. `utils/dasbs.py` (new, local): the network-independent parts of single-graph DASBS (route 2, stage 2A of
+    `docs/20261125/plan.md`), ported from the DASBS worktree (`sb_worktrees/DASBS/mis_sb`, used for the 11-15
+    small-graph runs): MIS energy and exact flip deltas, uniform-flip reference and its bridge, the ratio Bregman
+    loss, ctrl-AM / corr-DM losses, the substepped CTMC sampler, Sinkhorn on enumerated states, metrics. Defaults
+    compute exactly what the worktree computes (bit-identical runs); additions: `corrector_loss(time='zero')` and
+    `sample_paths(grid='quadratic')`. `scripts/sb/dasbs_single.py` is the worktree's single-graph trainer with its
+    RopeSiT network; tests: `tests/test_dasbs_single.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
