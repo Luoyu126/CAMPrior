@@ -17,7 +17,7 @@
 | 1D 学出来的配对 | 未开始 | | | | |
 | 1E 标签变体 | 未开始 | | | | |
 | 1F 加固 | 未开始 | | | | |
-| 2A 迁移单图 DASBS | 未开始 | | | | |
+| 2A 迁移单图 DASBS | 进行中 | 11-25 09:55 | | 代码迁移完成并提交：`cam/utils/dasbs.py`、`cam/scripts/sb/dasbs_single.py`；16 项测试通过；小配置上与原工作树逐位相同（训练日志与指标完全一致）。复现训练等 M2 通过后启动 | `cam/tests/test_dasbs_single.py`、`experiments/20261125_dasbs_smallgraph/` |
 | 2B 跨图共享，小图验证 | 未开始 | | | | |
 | 2C RB-small 训练 | 未开始 | | | | |
 | R 总报告 | 未开始 | | | | |
@@ -32,6 +32,7 @@
 | 1C ω = 0.35 种子 0（sb_w0.35_soft_s0） | 1689459 | 3 | 同目录 `..._sb_w0.35_soft_s0/train.log` | 11-25 13:45 |
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 14:00 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
+| 验证集前 64 张图的 KaMIS 多解（1C 的起点依赖分析用） | 1708059 | 无（CPU 16 进程） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/val64_kamis.log` | 11-25 11:00 |
 | M2 子 agent：独立推导、对抗复核 | （会话内） | 无 | `runs/scratch/m2_independent/`、`runs/scratch/m2_review/` | 11-25 10:30 |
 
 ## 待用户确认
@@ -54,3 +55,5 @@
 - 11-25 09:35–09:46：启动 1B 回归训练（ω = 0）和 1C 第一个种子（ω = 0.35、0.5、1.0）。单卡、batch 40；基线用两卡各 20，有效 batch 相同。
 - 11-25 09:42：M3 通过。
 - 11-25 09:48：math_route2.md 草稿完成；M2 的两个子 agent 复核进行中。
+- 11-25 09:52：提交起点依赖诊断（`CAM_SB_PAIR_TRACE`：相邻两条链共享起点 z，记录起点与最终解；分析脚本 `cam/scripts/sb/start_dependence.py`）。CPU 小测试通过。
+- 11-25 09:55–10:05：2A 代码迁移。在原工作树的 Python 环境下用同一小配置（path6，2 阶段）分别运行原代码和迁移后的代码，训练日志和评测指标逐位相同。修正（按 M2 结论）以选项形式加入、默认关闭：修正项回归改在 t = 0（math_route2.md §5：t 接近 1 时比值方差大）；采样时间网格在 t = 1 附近加密（§10）。复现时两种修正项时间都跑。
