@@ -48,6 +48,8 @@ class Reference(object):
         assert 0 <= s <= t <= 1
         if self.schedule == 'constant':
             return self.gamma * (t - s)
+        if s + self.alpha == 0:          # memoryless log-linear (alpha = 0): infinite noise on [0, t], t > 0
+            return math.inf if t > 0 else 0.0
         return self.gamma * math.log((t + self.alpha) / (s + self.alpha))
 
     def signal(self, s, t):
@@ -242,6 +244,18 @@ def ipf_alternation(mu, nu, ref, n, stages, dm_time=0.0, log_ratio_corrector=Fal
     return out
 
 
+def bridge_prob1(ref, x0, x1, t):
+    """Per-bit reference bridge (DASBS Prop. B.6, N = 2): P(X_t,i = 1 | X_0 = x0, X_1 = x1) for 0 < t < 1, bits
+    independent given both ends. P(b | x0_i, x1_i) ∝ K_{0,t}(x0_i, b) K_{t,1}(b, x1_i), one-bit channels."""
+    a0, a1 = ref.signal(0.0, t), ref.signal(t, 1.0)
+    x0 = np.asarray(x0); x1 = np.asarray(x1)
+    def ch(b, c, a):
+        return np.where(b == c, (1 + a) / 2, (1 - a) / 2)
+    w1 = ch(x0, 1, a0) * ch(1, x1, a1)
+    w0 = ch(x0, 0, a0) * ch(0, x1, a1)
+    return w1 / (w0 + w1)
+
+
 # ------------------------------------------------------------------ simulation of a tabular controller
 
 def evolve_piecewise(mu, Phis, grid, ref, nb):
@@ -258,10 +272,12 @@ def evolve_piecewise(mu, Phis, grid, ref, nb):
 def tau_leaping_marginal(mu, controller_fn, ref, nb, steps, mode='linear', grid=None):
     """Exact distribution of DASBS's tau-leaping sampler (App. B.6, Prop. B.7) with N = 2: on [t, t + h] every bit i
     flips independently with probability Gamma(t, t + h) / 2 * Phi_t(x)_i (mode 'linear', clipped to [0, 1]).
-    mode 'exp' uses 1 - exp(-Gamma(t, t + h) / 2 * Phi_t(x)_i) instead: the exact flip probability of one bit whose
-    rate is frozen while the others stay put; it agrees to first order and never exceeds 1 (local addition, not in
-    DASBS). grid: optional increasing time points from 0 to 1 (steps + 1 of them) instead of the uniform grid.
-    Returns (terminal marginal, max un-clipped linear flip probability seen)."""
+    mode 'exp' uses 1 - exp(-Gamma(t, t + h) / 2 * Phi_t(x)_i) instead: the probability of at least one jump of a
+    bit whose rate is frozen (not the net-flip probability r/(r + r')(1 - exp(-(r + r')h)) of the two-state chain);
+    it agrees to first order and never exceeds 1 (local addition, not in DASBS). grid: optional increasing time
+    points from 0 to 1 (steps + 1 of them) instead of the uniform grid. A step with Gamma = inf (the first step of the
+    memoryless log-linear reference) is a uniform resample of every bit: the reference kernel itself, controller
+    ignored. Returns (terminal marginal, max un-clipped linear flip probability seen on finite steps)."""
     assert mode in ('linear', 'exp')
     S, n = nb.shape
     X = states(n)
@@ -270,9 +286,13 @@ def tau_leaping_marginal(mu, controller_fn, ref, nb, steps, mode='linear', grid=
     grid = np.linspace(0, 1, steps + 1) if grid is None else np.asarray(grid, float)
     assert len(grid) == steps + 1 and grid[0] == 0 and abs(grid[-1] - 1) < 1e-12
     for j in range(steps):
-        lin = ref.Gamma(grid[j], grid[j + 1]) / 2 * controller_fn(grid[j])   # (S, n)
-        worst = max(worst, lin.max())
-        q = np.clip(lin, 0, 1) if mode == 'linear' else -np.expm1(-lin)
+        G = ref.Gamma(grid[j], grid[j + 1])
+        if math.isinf(G):
+            q = np.full((S, n), 0.5)
+        else:
+            lin = G / 2 * controller_fn(grid[j])                                 # (S, n)
+            worst = max(worst, lin.max())
+            q = np.clip(lin, 0, 1) if mode == 'linear' else -np.expm1(-lin)
         diff = (X[:, None, :] != X[None, :, :])                               # (x, y, i)
         T = np.prod(np.where(diff, q[:, None, :], 1 - q[:, None, :]), axis=2)
         p = p @ T
