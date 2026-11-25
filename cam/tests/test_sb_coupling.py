@@ -456,3 +456,26 @@ def test_categorical_posterior_is_sampler_A():
             assert (out - ref).abs().max() < 1e-5, (t, tt)      # float32 inside categorical_posterior
     finally:
         torch.bernoulli = orig
+
+
+def test_gpu_style_sinkhorn_matches_reference():
+    """sinkhorn_distances (float32 chunks on distances, the form used for real graphs) agrees with sinkhorn
+    (float64 on the starts) on the same starts; schedule_for_omega hits the requested end strength."""
+    diff = CategoricalDiffusion(T=50, schedule='cosine')
+    for om in (0.35, 1.0):
+        a = sb.schedule_for_omega(diff.Q_bar, om)
+        assert abs(sb.omega(a[-1].item()) - om) < 1e-12 and a[0] == 1.0
+    assert (sb.schedule_for_omega(diff.Q_bar, 0.0) - sb.sb_signal_schedule(diff.Q_bar, 0.0)).abs().max() == 0
+    g = torch.Generator().manual_seed(3)
+    labels = torch.randint(0, 2, (9, 60), generator=g)
+    pi1 = torch.rand(9, generator=g, dtype=torch.float64) + 0.2; pi1 /= pi1.sum()
+    for om in (0.3, 1.0):
+        D = sb.sample_distances(5000, labels, torch.Generator().manual_seed(7), chunk=1024)
+        z = torch.randint(0, 2, (5000, 60), generator=torch.Generator().manual_seed(7))
+        # same stream only if generated in one call; regenerate D from z directly for the comparison
+        Dz = (z.sum(1, keepdim=True) + labels.sum(1)[None, :] - 2 * z @ labels.T).to(torch.int16)
+        lg32, rel, _ = sb.sinkhorn_distances(Dz, om, pi1, tol=1e-6, chunk=1024)
+        lg64, err, _ = sb.sinkhorn(labels, pi1, math.tanh(om / 2), z, tol=1e-13)
+        assert rel < 1e-6 and err < 1e-12
+        assert ((lg32 - lg32.mean()) - (lg64 - lg64.mean())).abs().max() < 1e-4
+        assert D.dtype == torch.int16 and D.shape == (5000, 9) and int(D.min()) >= 0 and int(D.max()) <= 60

@@ -139,3 +139,56 @@ def omega(a_T):
 def effective_labels(P):
     """Effective number of labels per row of a probability matrix (K, M): 1 / sum_m P_m^2."""
     return 1.0 / (P ** 2).sum(1)
+
+
+def schedule_for_omega(Q_bar, omega_end):
+    """Signal schedule (sb_signal_schedule) whose noise-end signal a[T] gives exactly the cost strength omega_end,
+    a[T] = tanh(omega_end / 2). omega_end = 0 gives the existing schedule (a[T] = a~_T ~ 1e-6, the cosine table's own
+    end, so the coupling is independent up to ~1e-6)."""
+    Qb = torch.as_tensor(Q_bar, dtype=torch.float64)
+    base_T = (Qb[-1, 0, 0] - Qb[-1, 0, 1]).item()
+    a_end = math.tanh(float(omega_end) / 2)
+    a_param = max(0.0, (a_end - base_T) / (1 - base_T))
+    a = sb_signal_schedule(Qb, a_param)
+    if omega_end > 0:
+        assert abs(a[-1].item() - a_end) < 1e-12
+    return a
+
+
+def sample_distances(K, labels, generator=None, chunk=1 << 18):
+    """Hamming distances d(z_j, s_m) of K uniform starts z_j to the labels (M, n), as int16 (K, M), generated in
+    chunks on labels.device (the starts themselves are not kept)."""
+    M, n = labels.shape
+    assert n < 32768
+    s = labels.to(torch.float32)
+    out = torch.empty(K, M, dtype=torch.int16, device=labels.device)
+    for a in range(0, K, chunk):
+        b = min(K, a + chunk)
+        z = torch.randint(0, 2, (b - a, n), device=labels.device, generator=generator).to(torch.float32)
+        out[a:b] = (z.sum(1, keepdim=True) + s.sum(1)[None, :] - 2 * z @ s.T).round().to(torch.int16)
+    return out
+
+
+def sinkhorn_distances(D, omega_end, pi1, iters=5000, tol=1e-4, chunk=1 << 18):
+    """Monte Carlo Sinkhorn of math_route1.md §7 from precomputed distances D (K, M) (sample_distances), in float32
+    chunks: the same fixed point as sinkhorn() with z = the K starts, written with the cost omega * d (the
+    z-dependent part of log K_{a_T} that does not cancel). Stops when the largest relative label-marginal error is
+    below tol. Returns (log_g float64 normalised to logsumexp 0, that error, iterations)."""
+    K = D.shape[0]
+    pi1 = pi1.to(device=D.device, dtype=torch.float64)
+    assert bool((pi1 > 0).all()) and abs(pi1.sum().item() - 1) < 1e-9
+    log_pi1 = torch.log(pi1)
+    log_g = log_pi1 - torch.logsumexp(log_pi1, 0)
+    rel = math.inf
+    for it in range(1, iters + 1):
+        lg = log_g.to(torch.float32)[None, :]
+        marg = torch.zeros_like(pi1)
+        for a in range(0, K, chunk):
+            marg += torch.softmax(lg - float(omega_end) * D[a:a + chunk].to(torch.float32), dim=1).sum(0).double()
+        marg /= K
+        rel = ((marg - pi1).abs() / pi1).max().item()
+        if rel < tol:
+            break
+        log_g = log_g + log_pi1 - torch.log(marg)
+        log_g = log_g - torch.logsumexp(log_g, 0)
+    return log_g, rel, it
