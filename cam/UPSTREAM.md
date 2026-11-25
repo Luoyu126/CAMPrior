@@ -316,7 +316,20 @@ shows only the items below).
     the bit-flip reference (route 1 of `docs/20261125/plan.md`). Sinkhorn for the label potential g, the label
     posterior P*(y | x_k) ∝ g K_{a_k}, the per-bit reference bridge, and the SB signal schedule
     a_k = a_T + (1 - a_T) a~_k built from the existing cosine Q_bar (a_T = 0 reproduces it exactly). Not wired into
-    `solvers/difusco.py` yet. Derivations: `docs/20261125/math_route1.md`; test: `tests/test_sb_coupling.py`.
+    `solvers/difusco.py` by itself (item 69 wires it in). Derivations: `docs/20261125/math_route1.md`; test: `tests/test_sb_coupling.py`.
+    `schedule_for_omega`, `sample_distances` and `sinkhorn_distances` are the GPU / float32 Monte Carlo Sinkhorn
+    for real graphs (n ~ 250), checked against the float64 `sinkhorn`.
+69. `solvers/difusco.py` + `main.py`: `--sb_coupling --sb_omega w [--sb_logg file]`, the Schrödinger-bridge coupling
+    of item 67 in DIFUSCO training and sampling (node problems; needs `--heat_lambda 0` and, for training,
+    `--label_choice random|soft` with `--label_set`). The diffusion's Q_bar is replaced by the SB reference with
+    noise-end signal tanh(w / 2) (w = 0: the existing table, identical to 1e-12). Training: z ~ Bernoulli(0.5)^n,
+    label m ~ pi*(m | z) with the precomputed potentials of `scripts/sb/precompute_logg.py`, x_t ~ the per-bit
+    reference bridge; soft targets weight the labels by g_m K_{a_t}(s_m | x_t). Sampling: `posterior` is sampler A
+    unchanged (on the new Q_bar); `renoise` / `renoise_decode` re-noise through the bridge back to the chain's own
+    start z (sampler B). Off by default: without `--sb_coupling` nothing changes. Diagnostics: `CAM_LOSS_TRACE=file`
+    appends each step's loss; with `--sb_omega 0` and `CAM_SB_LEGACY_DRAWS=1` the existing draws are kept and the
+    existing soft-target loss is traced next to the SB one (equal on 200 steps). Checks:
+    `scripts/sb/check_difusco_sb_sampler.py` (both samplers end on pi1 with an exact tabular posterior).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

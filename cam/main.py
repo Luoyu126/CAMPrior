@@ -72,6 +72,10 @@ def main():
     # local addition (UPSTREAM.md item 44): several optimal labels per training graph (DIFUSCO)
     parser.add_argument('--label_set', type=str, default=None, help='scripts/mis/build_solution_sets.py output')
     parser.add_argument('--label_choice', type=str, default='first', choices=['first', 'random', 'nearest', 'tilted', 'soft'])
+    # local addition (UPSTREAM.md item 69): Schrödinger-bridge coupling (docs/20261125/math_route1.md)
+    parser.add_argument('--sb_coupling', action='store_true', help='DIFUSCO: SB coupling between Bernoulli(0.5)^n and the label set')
+    parser.add_argument('--sb_omega', type=float, default=0.0, help='SB cost strength omega = log((1+a_T)/(1-a_T)); 0 = independent')
+    parser.add_argument('--sb_logg', type=str, default=None, help='scripts/sb/precompute_logg.py output for --sb_omega (training)')
     parser.add_argument('--label_temp', type=float, default=1.0, help="temperature of --label_choice tilted (in set-size units)")
     # local addition (UPSTREAM.md item 45): per-graph weights of the DIFUSCO loss
     parser.add_argument('--graph_weight', type=str, default='none', choices=['none', 'nsets', 'ce'])

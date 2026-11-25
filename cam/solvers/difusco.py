@@ -4,6 +4,8 @@ from utils.heated_forward import HeatedForward
 from utils.label_sets import load_label_sets, choose, posterior_mean
 from utils.tour_sets import load_tour_sets, edge_indicator
 from utils.graph_weights import GraphWeights, effective_sample_size
+from utils import sb_coupling
+import glob
 import json
 import os
 import torch
@@ -39,6 +41,36 @@ class DIFUSCO(SLSolver):
             sets = load_label_sets(args.graph_weight_sets, args.train_path, args.train_samples)
             self.graph_weights = GraphWeights(mode, len(sets), nsets=[s.shape[0] for s in sets],
                                               power=args.graph_weight_power, num_tp=args.num_tp)
+        # local addition (UPSTREAM.md item 69): Schrödinger-bridge coupling between Bernoulli(0.5)^n and the label
+        # set (docs/20261125/math_route1.md). The reference keeps a signal a_T = tanh(omega / 2) at the noise end;
+        # the existing samplers run on its Q_bar (posterior = sampler A; renoise* bridge back to the chain's start
+        # z = sampler B). Off by default; --sb_omega 0 reproduces the existing schedule and independent coupling.
+        self.sb = getattr(args, 'sb_coupling', False)
+        if self.sb:
+            assert self.solution_type == 'node', 'SB coupling: node problems only'
+            assert self.heated.heat_lambda == 0, 'SB coupling needs --heat_lambda 0'
+            assert self.sampler in ('posterior', 'renoise', 'renoise_decode'), self.sampler
+            self.sb_omega = float(args.sb_omega)
+            self.sb_a = sb_coupling.schedule_for_omega(self.diffusion.Q_bar, self.sb_omega)
+            self.diffusion.Q_bar = sb_coupling.signal_to_Q_bar(self.sb_a, as_numpy=True)
+            self.sb_z = None
+            self.sb_log_g = None
+            if args.do_train:
+                assert self.label_sets is not None and self.label_choice in ('random', 'soft')
+                assert self.graph_weights is None
+                if self.sb_omega > 0:
+                    d = torch.load(args.sb_logg, weights_only=False)
+                    assert abs(d['omega'] - self.sb_omega) < 1e-12 and d['num_tp'] == args.num_tp, args.sb_logg
+                    assert abs(d['a_end'] - self.sb_a[-1].item()) < 1e-12
+                    files = [os.path.basename(f) for f in sorted(glob.glob(args.train_path + '/*gpickle'))]
+                    files = files[:len(self.label_sets)]
+                    assert d['files'][:len(files)] == files, 'log g file does not match the graphs'
+                    self.sb_log_g = d['log_g']
+                    assert len(self.sb_log_g) >= len(self.label_sets)
+                    for g_, s_ in zip(self.sb_log_g, self.label_sets):
+                        assert g_.shape[0] == s_.shape[0]
+                else:   # independent coupling (up to the ~1e-6 signal the cosine table keeps at T): g = pi1, uniform
+                    self.sb_log_g = [torch.zeros(s_.shape[0], dtype=torch.float64) for s_ in self.label_sets]
 
     def edge_slices(self, graph):
         """Per graph of the batch: (dataset index, edge slice, local (e0, e1)); edges are stored graph by graph."""
@@ -164,14 +196,22 @@ class DIFUSCO(SLSolver):
         # t in 1..T as in DIFUSCO (t=0 would be the clean label itself)
         time = np.random.randint(1, self.num_tp+1, batch_size)
         
+        # SB pairs come from sb_draw; CAM_SB_LEGACY_DRAWS=1 (only with --sb_omega 0) keeps the existing draws so a
+        # run can be compared step by step with the existing soft-target implementation (plan.md 1B criterion 2)
+        sb_pairs = self.sb and not (self.sb_omega == 0 and os.environ.get('CAM_SB_LEGACY_DRAWS'))
         if self.solution_type == 'edge':
             time = time[graph.batch[graph.edge_index[0]].cpu().numpy()]
             solution_0 = graph.edge_attr if self.label_sets is None else self.pick_labels(graph)
         else:
             time = time[graph.batch.cpu().numpy()]
-            solution_0 = graph.x if self.label_sets is None else self.pick_labels(graph)
+            if sb_pairs:
+                solution_0, solution_t = self.sb_draw(graph, time)
+            else:
+                solution_0 = graph.x if self.label_sets is None else self.pick_labels(graph)
 
-        if self.heated.heat_lambda == 0:
+        if sb_pairs:
+            pass
+        elif self.heated.heat_lambda == 0:
             solution_0_onehot = F.one_hot(solution_0.long(), num_classes=2).float()
             solution_t = self.diffusion.sample(solution_0_onehot, time)
         else:
@@ -181,7 +221,7 @@ class DIFUSCO(SLSolver):
             solution_t = self.heated.sample(A, graph.b, solution_0.float().view(-1, 1), t_nodes)
         soft = None
         if self.label_sets is not None and self.label_choice == 'soft':
-            soft = self.soft_targets(graph, solution_t, time)
+            soft = self.sb_soft_targets(graph, solution_t, time) if self.sb else self.soft_targets(graph, solution_t, time)
         time = torch.from_numpy(time).float().to(self.accelerator.device)
         target = solution_0.long().squeeze(1)          
         
@@ -189,12 +229,57 @@ class DIFUSCO(SLSolver):
         if soft is not None:   # UPSTREAM.md item 56: posterior mean over the label set as the target
             assert self.graph_weights is None
             lp = torch.log_softmax(logits.float(), -1)
-            return -(soft * lp[:, 1] + (1 - soft) * lp[:, 0]).mean()
+            loss = -(soft * lp[:, 1] + (1 - soft) * lp[:, 0]).mean()
+            if self.sb and not sb_pairs and os.environ.get('CAM_LOSS_TRACE'):
+                # regression check: the existing soft target on the same x_t and logits, traced next to ours
+                ref = self.soft_targets(graph, solution_t, time.long().cpu().numpy())
+                return self.trace_loss(loss, -(ref * lp[:, 1] + (1 - ref) * lp[:, 0]).mean())
+            return self.trace_loss(loss)
 
         # Compute loss
         if self.graph_weights is None:
-            return self.loss_func(logits, target)
+            return self.trace_loss(self.loss_func(logits, target))
         return self.weighted_loss(graph, logits, target, time)
+
+    def trace_loss(self, loss, other=None):
+        """Diagnostic (env CAM_LOSS_TRACE=FILE, local addition, UPSTREAM.md item 69): append every step's loss
+        (and a second loss on the same step, if given)."""
+        f = os.environ.get('CAM_LOSS_TRACE')
+        if f:
+            with open(f, 'a') as fh:
+                fh.write(f'{loss.item():.10f}' + ('' if other is None else f' {other.item():.10f}') + '\n')
+        return loss
+
+    def sb_draw(self, graph, time):
+        """SB training pair (math_route1.md Cor. 3.3): per graph z ~ Bernoulli(0.5)^n, label m ~ pi*(m | z)
+        = softmax(log g_m + log K_{a_T}(s_m | z)), x_t ~ the per-bit reference bridge between s_m and z.
+        time: per-node numpy t (one t per graph). Returns (label, x_t), both shaped like graph.x."""
+        dev = graph.x.device
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
+        a_end = self.sb_a[-1].item()
+        ys, xs = [], []
+        for g, i in enumerate(idx):
+            s = self.label_sets[int(i)].to(dev)
+            assert s.shape[1] == ptr[g + 1] - ptr[g], 'label set does not match the graph size'
+            z = torch.bernoulli(torch.full((s.shape[1],), 0.5, device=dev))
+            logit = self.sb_log_g[int(i)].to(dev) + sb_coupling.log_kernel(z[None], s, a_end)[0]
+            y = s[torch.multinomial(torch.softmax(logit, 0), 1).item()].double()
+            t = int(time[ptr[g]])
+            xs.append(torch.bernoulli(sb_coupling.bridge_prob1(y, z, self.sb_a[t].item(), a_end)))
+            ys.append(y)
+        return torch.cat(ys).view_as(graph.x).to(graph.x.dtype), torch.cat(xs).view(-1, 1).float()
+
+    def sb_soft_targets(self, graph, solution_t, time):
+        """Per node E*[y | x_t] = sum_m P*(m | x_t) s_m with P*(m | x_t) ∝ g_m K_{a_t}(s_m | x_t) (math_route1.md
+        Thm 3.1, Cor. 3.2); time: per-node numpy t."""
+        dev = solution_t.device
+        xt = solution_t.view(-1); out = []
+        idx = torch.as_tensor(graph.idx).reshape(-1).tolist(); ptr = graph.ptr.tolist()
+        for g, i in enumerate(idx):
+            a_t = self.sb_a[int(time[ptr[g]])].item()
+            out.append(sb_coupling.posterior_mean(xt[ptr[g]:ptr[g + 1]][None], self.label_sets[int(i)].to(dev),
+                                                  self.sb_log_g[int(i)], a_t)[0].float())
+        return torch.cat(out)
 
     def soft_targets(self, graph, solution_t, time):
         """Per node E[x_0 | x_t] over the graph's label set (UPSTREAM.md item 56); time: per-node numpy t."""
@@ -254,6 +339,9 @@ class DIFUSCO(SLSolver):
             return self.diffusion.sample(F.one_hot(x0.long(), num_classes=2).float(), int(t2))
         if self.sampler in ('renoise_decode', 'renoise_feasible'):
             x0 = self.decode_x0(graph, x0, p1)
+        if self.sb:   # sampler B (math_route1.md §5): the reference bridge between x0 and the chain's start z
+            return torch.bernoulli(sb_coupling.bridge_prob1(x0, self.sb_z, self.sb_a[int(t2)].item(),
+                                                            self.sb_a[-1].item())).float()
         t_nodes = torch.full((graph.num_nodes,), int(t2), dtype=torch.long, device=x0.device)
         return self.heated.sample(graph.A, graph.b, x0, t_nodes)
 
@@ -316,6 +404,8 @@ class DIFUSCO(SLSolver):
                 graph.A = A
                 num_nodes = graph.num_nodes
                 solution = torch.randint(0,2,size=(num_nodes,self.num_k), device=self.accelerator.device, dtype=torch.float)
+                if self.sb:
+                    self.sb_z = solution.clone()   # the noise end z of every chain (sampler B bridges back to it)
     
             trace = [] if os.environ.get('CAM_TRACE_INPUTS') else None
             for t in range(self.num_t):
