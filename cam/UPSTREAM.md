@@ -359,6 +359,10 @@ shows only the items below).
     the last step's probabilities. `utils/dasbs.py` (item 70) now also accepts alpha = 0 (memoryless log-linear).
     Tests: `tests/test_dasbs_solver.py`; small-graph family and exact evaluation: `scripts/sb/gen_small_graphs.py`,
     `scripts/sb/dasbs_exact_eval.py`.
+    Low-temperature options (stage 2C, all off by default): `--dasbs_ctrl_scale tau` (log Phi = network output / tau,
+    tau kept in the checkpoint), `--dasbs_loss_norm pred` (ctrl-AM terms divided by max(1, Phi), same stationary
+    point), `--dasbs_skip_overflow` (skip and count controller batches whose ratios are not representable),
+    `--dasbs_ema d` (parameter EMA for evaluation and best.pt; raw weights in `*_raw.pt`).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

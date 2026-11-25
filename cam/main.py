@@ -84,6 +84,10 @@ def main():
     parser.add_argument('--dasbs_replicas', type=int, default=4, help='bridge points x_t per (x0, x1) pair')
     parser.add_argument('--dasbs_corrector_time', type=str, default='zero', choices=['zero', 'uniform'])
     parser.add_argument('--dasbs_grid', type=str, default='quadratic', choices=['uniform', 'quadratic'])
+    parser.add_argument('--dasbs_ctrl_scale', type=str, default='none', choices=['none', 'tau'], help='DASBS: log Phi = net / tau')
+    parser.add_argument('--dasbs_loss_norm', type=str, default='none', choices=['none', 'pred'], help='DASBS: ctrl-AM terms / max(1, Phi)')
+    parser.add_argument('--dasbs_skip_overflow', action='store_true', help='DASBS: skip (and count) controller batches whose ratios overflow')
+    parser.add_argument('--dasbs_ema', type=float, default=0.0, help='DASBS: parameter EMA decay for evaluation (0 = off)')
     parser.add_argument('--label_temp', type=float, default=1.0, help="temperature of --label_choice tilted (in set-size units)")
     # local addition (UPSTREAM.md item 45): per-graph weights of the DIFUSCO loss
     parser.add_argument('--graph_weight', type=str, default='none', choices=['none', 'nsets', 'ce'])

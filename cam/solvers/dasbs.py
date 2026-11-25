@@ -21,7 +21,24 @@ Sampling (training rollouts and evaluation): tau-leaping on a time grid (uniform
 with probability min(1, Gamma(t_k, t_k+1) / 2 * Phi_tk(x)_i) (DASBS Prop. B.7, math_route2.md §10); a step with
 Gamma = inf (first step of the memoryless reference) resamples every bit uniformly. Evaluation decodes the last
 step's per-bit probability of being 1 greedily (env.evaluate), as DiffUCO / CAM do.
+Options for low temperature (stage 2C; all off by default, so 2B is unchanged):
+  --dasbs_ctrl_scale tau   the controller network outputs u and log Phi = u / tau (tau of the current epoch, kept in
+                           the checkpoint as the buffer ctrl_tau): the log ratios grow like 1/tau, u stays O(1). A
+                           reparameterisation; the regression target and its minimiser are unchanged.
+  --dasbs_loss_norm pred   the ctrl-AM loss of each (node, chain) is divided by max(1, Phi_pred) (detached). The
+                           weight depends on x_t only, so the stationary point is still Phi = E[ratio | x_t]
+                           (gradient in log Phi: (Phi - ratio) / max(1, Phi)); it stops the few nodes with huge
+                           ratios at low tau from setting the scale of every update.
+  --dasbs_skip_overflow    a controller batch whose loss or per-element gradient is not representable (exp of a
+                           log ratio above ~85 reaches the float32 network as inf) is skipped (zero gradient) and
+                           counted (self.skipped, logged per epoch as train/skipped) instead of stopping the run.
+                           Off: such a batch raises, as in 2A / 2B. At low tau with random early rollouts on dense
+                           graphs (RB-small: degree up to ~70, so -dH/tau up to ~800 at tau = 0.1) this is needed;
+                           the skip fraction is reported because skipped batches bias the fit.
+  --dasbs_ema d            exponential moving average of the parameters (DASBS App. C); evaluation and best.pt use
+                           the average, rollouts use the current parameters; <file>_raw.pt keeps the raw weights.
 """
+import copy
 import math
 
 import torch
@@ -37,17 +54,21 @@ class DASBSNet(nn.Module):
     Only the network of the current phase receives gradients (the other one is used under no_grad or not at all), and
     AdamW skips parameters whose grad is None, so the idle network is not touched by its optimizer state."""
 
-    def __init__(self, controller, corrector, log_bound):
+    def __init__(self, controller, corrector, log_bound, ctrl_scale=False):
         super().__init__()
         self.controller, self.corrector = controller, corrector
         self.log_bound = float(log_bound)
+        self.ctrl_scale = bool(ctrl_scale)
+        if self.ctrl_scale:
+            self.register_buffer('ctrl_tau', torch.tensor(1.0, dtype=torch.float64))
         head = corrector.head
         nn.init.zeros_(head.weight)
         nn.init.zeros_(head.bias)
 
     def ctrl(self, graph, x, t):
         """x, t: (N, K) -> log Phi_t(x)_i, (N, K)."""
-        return self.controller(graph, x.unsqueeze(-1), t).squeeze(-1)
+        out = self.controller(graph, x.unsqueeze(-1), t).squeeze(-1)
+        return out / self.ctrl_tau.to(out.dtype) if self.ctrl_scale else out
 
     def corr(self, graph, y):
         """y: (N, K) -> log Phihat(y)_i, (N, K), within [-log_bound, log_bound]."""
@@ -61,6 +82,42 @@ class DASBSNet(nn.Module):
     def forward(self, graph, x, t=None, which='ctrl'):
         """Gradient-carrying calls go through forward (so a distributed wrapper sees them)."""
         return self.ctrl(graph, x, t) if which == 'ctrl' else self.corr(graph, x)
+
+
+def normalized_bregman(log_prediction, log_target):
+    """ratio_bregman with each term divided by max(1, exp(prediction)) (detached): same stationary point, see the
+    module docstring (--dasbs_loss_norm pred). float64; non-finite values raise."""
+    p = log_prediction.double()
+    t = log_target.detach().double()
+    a, b = t.exp(), p.exp()
+    value = (a * (t - p) - a + b) / b.detach().clamp(min=1.0)
+    if not torch.isfinite(value).all():
+        raise FloatingPointError('ratio overflow: increase temperature or inspect model logits')
+    return value.mean()
+
+
+GRAD_LIMIT = 1e30          # per-element gradient magnitude of the loss that the float32 backward still represents
+
+
+def check_representable(log_prediction, log_target, normalized):
+    """Raise FloatingPointError if the loss gradient w.r.t. log Phi of some element, (Phi - ratio) / weight, is not
+    finite or above GRAD_LIMIT (it would be inf after the float32 cast in backward)."""
+    with torch.no_grad():
+        p = log_prediction.double(); t = log_target.double()
+        g = (p.exp() - t.exp())
+        if normalized:
+            g = g / p.exp().clamp(min=1.0)
+        if not torch.isfinite(g).all() or g.abs().max() > GRAD_LIMIT:
+            raise FloatingPointError('ratio overflow')
+
+
+@torch.no_grad()
+def ema_update(ema, model, decay):
+    """ema <- decay * ema + (1 - decay) * model for parameters; buffers copied."""
+    for pe, pm in zip(ema.parameters(), model.parameters()):
+        pe.mul_(decay).add_(pm.detach(), alpha=1 - decay)
+    for be, bm in zip(ema.buffers(), model.buffers()):
+        be.copy_(bm)
 
 
 def gamma_integral(reference, s, t):
@@ -135,12 +192,45 @@ class DASBS(ULSolver):
         corrector = models.EncodeProcessDecode(n_layers=args.num_l, hidden_dim=args.num_h, out_channels=1,
                                                use_activation_checkpoint=args.use_activation_checkpoint,
                                                problem=args.problem, time_scale=self.time_scale)
-        self.model = DASBSNet(self.model, corrector, corrector_log_bound(self.reference))
+        self.ctrl_scale = getattr(args, 'dasbs_ctrl_scale', 'none') == 'tau'
+        self.loss_norm = getattr(args, 'dasbs_loss_norm', 'none') == 'pred'
+        self.ema_decay = float(getattr(args, 'dasbs_ema', 0.0) or 0.0)
+        self.skip_overflow = bool(getattr(args, 'dasbs_skip_overflow', False))
+        self.skipped = 0
+        self.ctrl_batches = 0
+        self.model = DASBSNet(self.model, corrector, corrector_log_bound(self.reference), self.ctrl_scale)
         if getattr(self, '_pending_state', None) is not None:     # test checkpoint, or --checkpoint to resume
             self.model.load_state_dict(self._pending_state)
             self._pending_state = None
         if args.do_train:
             self.configure_optimizer(args)        # again: the optimizer must see both networks
+        self.ema = None
+        if args.do_train and self.ema_decay > 0:
+            self.ema = copy.deepcopy(self.accelerator.unwrap_model(self.model)).eval()
+            self.ema_device = next(self.ema.parameters()).device
+            for q in self.ema.parameters():
+                q.requires_grad_(False)
+
+    def log(self, logger):
+        if 'train/loss' in logger:          # per-epoch training record: cumulative overflow skips (--dasbs_skip_overflow)
+            logger = dict(logger, **{'train/skipped': self.skipped, 'train/ctrl_batches': self.ctrl_batches,
+                                     'train/tau': float(self.tau)})
+            self.accelerator.print(f"epoch {logger.get('Epoch')}: tau {float(self.tau):.4g}, skipped "
+                                   f"{self.skipped}/{self.ctrl_batches} controller batches")
+        return super().log(logger)
+
+    def eval_net(self):
+        return self.ema if self.ema is not None else self.accelerator.unwrap_model(self.model)
+
+    def save_ckpt(self, save_file):
+        if not self.accelerator.is_local_main_process:
+            return
+        net = self.accelerator.unwrap_model(self.model)
+        if self.ema is None:
+            torch.save(net.state_dict(), save_file)
+            return
+        torch.save(self.ema.state_dict(), save_file)
+        torch.save(net.state_dict(), save_file[:-3] + '_raw.pt' if save_file.endswith('.pt') else save_file + '_raw')
 
     def load_ckpt(self, ckpt):
         if isinstance(self.model, DASBSNet):
@@ -157,6 +247,10 @@ class DASBS(ULSolver):
         self.phase = 'controller' if self.iteration % (C + R) < C else 'corrector'
         self.iteration += 1
         net = self.accelerator.unwrap_model(self.model)
+        if self.ctrl_scale:
+            net.ctrl_tau.fill_(float(self.tau))
+            if self.ema is not None:
+                self.ema.ctrl_tau.fill_(float(self.tau))
         x0 = torch.randint(0, 2, size=(graph.num_nodes, self.num_kp), device=self.accelerator.device).float()
         x1 = tau_leap(net, graph, x0.clone(), self.reference, self.grid_train)
         buffer = BatchBuffer()
@@ -166,18 +260,32 @@ class DASBS(ULSolver):
     def train_batch(self, graph, batch):
         x0, x1 = (b.T.repeat_interleave(self.replicas, 1) for b in batch)       # (N, B * replicas)
         net = self.accelerator.unwrap_model(self.model)
+        if self.ema is not None:            # the previous optimizer step's parameters enter the average here
+            if self.ema_device != x0.device:
+                self.ema.to(x0.device); self.ema_device = x0.device
+            ema_update(self.ema, net, self.ema_decay)
         if self.phase == 'controller':
             t = torch.rand(x0.shape[1], device=x0.device)[None, :].expand_as(x0)
             xt = self.reference.sample_bridge(x0, x1, t).to(x0.dtype)
             target = controller_target(self.problem, net, graph, x1, self.tau)
-            return D.ratio_bregman(self.model(graph, xt, t.to(x0.dtype)), target)
+            loss = normalized_bregman if self.loss_norm else D.ratio_bregman
+            pred = self.model(graph, xt, t.to(x0.dtype))
+            self.ctrl_batches += 1
+            if self.skip_overflow:
+                try:
+                    check_representable(pred, target, self.loss_norm)
+                    return loss(pred, target)
+                except FloatingPointError:
+                    self.skipped += 1
+                    return (pred * 0).sum()
+            return loss(pred, target)
         _, _, target = corrector_pairs(self.reference, x0, x1, self.corrector_time)
         return D.ratio_bregman(self.model(graph, x1, None, 'corr'), target)
 
     @torch.no_grad()
     def evaluate_single(self, graph):
         best = []
-        net = self.accelerator.unwrap_model(self.model)
+        net = self.eval_net()
         A = torch.sparse_coo_tensor(graph.edge_index, graph.edge_weight,
                                     torch.Size((graph.num_nodes, graph.num_nodes))).to_sparse_csr()
         graph.A = A

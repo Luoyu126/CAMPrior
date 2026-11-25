@@ -10,6 +10,7 @@ memoryless reference the corrector is identically 1 and the ctrl-AM target is th
 conditional mean is the M2 controller (math_route2.md corollary 7.2).
 (Own runner like test_block_labels.py; the test_* functions are also pytest-compatible.)
 """
+import math
 import os
 import sys
 import time
@@ -27,7 +28,7 @@ from torch_geometric.data import Data  # noqa: E402
 
 from envs.mis import Env  # noqa: E402
 from solvers.dasbs import (DASBSNet, controller_target, corrector_log_bound, corrector_pairs,  # noqa: E402
-                           flip_delta, tau_leap)
+                           ema_update, flip_delta, normalized_bregman, tau_leap)
 from utils import dasbs as D  # noqa: E402
 from utils import dasbs_exact as de  # noqa: E402
 
@@ -196,6 +197,47 @@ def test_tau_leap_reference_and_memoryless():
     x1 = tau_leap(ZeroCtrl(), g, x0.clone(), ref0, D.time_grid(50, 'quadratic'))
     assert abs(float(x1.mean()) - 0.5) < 0.01
     assert set(x1.unique().tolist()) <= {0.0, 1.0}
+
+
+def test_ctrl_scale_and_normalized_loss():
+    """2C options. ctrl_scale: log Phi = network output / tau, tau stored in the state dict. normalized_bregman: for a
+    fixed x_t the stationary point in log Phi is still log E[ratio] (also for heavy-tailed ratios as at low tau; the
+    loss is convex in log Phi, so it is the minimiser); regressing the log ratio instead gives E log ratio, which is
+    off (negative control)."""
+    class Const(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.w = torch.nn.Parameter(torch.tensor(3.0))
+        def forward(self, graph, x, t):
+            return self.w * torch.ones_like(x)
+    net = DASBSNet(Const(), _Zero(), 0.0, ctrl_scale=True)
+    net.ctrl_tau.fill_(0.1)
+    x = torch.zeros(4, 2)
+    assert torch.allclose(net.ctrl(None, x, x), torch.full_like(x, 30.0))
+    assert 'ctrl_tau' in net.state_dict()
+    assert 'ctrl_tau' not in DASBSNet(Const(), _Zero(), 0.0).state_dict()
+    g = torch.Generator().manual_seed(0)
+    for tau in (1.0, 0.1):
+        logr = (torch.randn(4000, generator=g, dtype=torch.float64) * 0.7 + torch.randint(0, 3, (4000,), generator=g)
+                .double() * 2.0 - 2.0) / tau                         # mixture, heavy-tailed after exp
+        want = torch.logsumexp(logr, 0) - math.log(len(logr))      # log E[ratio]
+        for fn in (normalized_bregman, D.ratio_bregman):     # the gradient in log Phi changes sign at log E[ratio]
+            grads = []
+            for d in (-0.05, 0.0, 0.05):
+                p = torch.tensor(float(want) + d, dtype=torch.float64, requires_grad=True)
+                fn(p.expand_as(logr), logr).backward()
+                grads.append(float(p.grad))
+            scale = max(abs(grads[0]), abs(grads[2]))
+            assert grads[0] < 0 < grads[2] and abs(grads[1]) < 1e-9 * scale, (fn.__name__, tau, grads)
+        assert abs(float(logr.mean()) - float(want)) > 0.5                 # the log-regression minimiser is off
+
+
+def test_ema_update():
+    a = torch.nn.Linear(3, 2); b = torch.nn.Linear(3, 2)
+    a.register_buffer('k', torch.tensor(1.0)); b.register_buffer('k', torch.tensor(5.0))
+    w0, wb = a.weight.detach().clone(), b.weight.detach().clone()
+    ema_update(a, b, 0.9)
+    assert torch.allclose(a.weight, 0.9 * w0 + 0.1 * wb) and float(a.k) == 5.0
 
 
 def main():
