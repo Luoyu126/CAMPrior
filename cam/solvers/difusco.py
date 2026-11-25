@@ -484,8 +484,10 @@ class DIFUSCO(SLSolver):
                 if os.environ.get('CAM_SB_PAIR_TRACE') and not os.environ.get('CAM_SB_TRACE_NOSHARE'):
                     assert self.num_k % 2 == 0           # diagnostic (UPSTREAM.md item 69): chains 2j, 2j+1
                     solution[:, 1::2] = solution[:, 0::2]   # share their start
-                if self.sb and self.sb_reverse:          # stage 1D backward sampler: start from labels of the graph
-                    solution = self.reverse_starts(graph, solution)
+                if self.sb and self.sb_reverse and os.environ.get('CAM_SB_STARTS'):
+                    solution = self.reverse_starts(graph, solution)   # stage 1D backward sampler: start from labels
+                # (without CAM_SB_STARTS, e.g. the validation inside training, the backward network starts from
+                # uniform states; its validation number is then not meaningful and only the last epoch is used)
                 start = solution.clone()
                 if self.sb:
                     self.sb_z = solution.clone()   # the noise end z of every chain (sampler B bridges back to it)
