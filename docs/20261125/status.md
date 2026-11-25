@@ -26,21 +26,25 @@
 
 | 任务 | 进程号 | GPU | 日志 | 预计结束（UTC） |
 |---|---|---|---|---|
-| 1B 基线第二种子：独立配对随机抽（indep_s1） | 1674149 | 4,5 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_s1/train.log` | 11-25 11:30 |
-| 1B 基线第二种子：独立配对软目标（indep_soft_s1） | 1674186 | 6,7 | 同目录 `..._indep_soft_s1/train.log` | 11-25 11:30 |
+| 1B 基线第二种子：独立配对随机抽（indep_s1） | 1674149 | 4,5 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_s1/train.log` | 11-25 12:10（共用 GPU 后变慢） |
+| 1B 基线第二种子：独立配对软目标（indep_soft_s1） | 1674186 | 6,7 | 同目录 `..._indep_soft_s1/train.log` | 11-25 12:20 |
 | 1B 回归训练：SB 代码路径 ω = 0（sb_w0_soft_s0） | 1689431 | 0 | 同目录 `..._sb_w0_soft_s0/train.log` | 11-25 15:15（与 1E 共用 GPU 后每 epoch 47→59 秒） |
 | 1C ω = 0.35 种子 0（sb_w0.35_soft_s0） | 1689459 | 3 | 同目录 `..._sb_w0.35_soft_s0/train.log` | 11-25 15:20 |
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 15:30 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 15:45 |
-| 自动接续：等基线第二种子结束后，在 GPU 5/6/7 启动 1C 的 ω = 0.35/0.5/1.0 第二种子，在 GPU 4 依次评测基线（锚点 50/20/10/5 步 × 两种采样器；起点成对追踪） | 2453475 | 4–7（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log` | 启动 11-25 11:35；评测约 12:30 结束 |
-| 1E 扰动标签集构造：多解 + 扰动（单解 + 扰动已完成） | 2442545 | 无（CPU） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/mkamis_repair10.log` | 11-25 12:40 |
+| 自动接续：等基线第二种子结束后，在 GPU 5/6/7 启动 1C 的 ω = 0.35/0.5/1.0 第二种子，在 GPU 4 依次评测基线（锚点 50/20/10/5 步 × 两种采样器；起点成对追踪） | 2453475 | 4–7（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log` | 启动约 12:20；评测约 13:30 结束 |
 | 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 15:15–15:45 结束，评测各约 20 分钟 |
 | 2B 自动接续：各 run 写出 epoch_0047.pt 后跑精确评测（test、valid、wl 三组并行，各 4 线程，CPU） | 2583343 | — | `runs/experiments/20261125_dasbs_crossgraph/after_train.log`；结果 `exact_<set>_epoch_0047.jsonl` | 12:50 开始，约 1 小时，~13:50 |
-| 1E 势的预先计算（ω 未定，先算 0.35/0.5/1.0 三个候选；单解 + 扰动 等权/T=1/T=0.5，k128 等权） | 2584159、2584160、2584161 | 0、1、2（与训练共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_spec_w*.log` | 约 11:50 |
+| 1E 势的预先计算（ω 未定，先算 0.35/0.5/1.0 三个候选；单解 + 扰动 等权/T=1/T=0.5，k128 等权） | 2584159、2584160、2584161 | 0、1、2（与训练共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_spec_w*.log` | 单解部分已完成；k128 约 12:15 |
 | 1E 对照：单解 + 扰动，等权，独立配对（ω = 0） | 2588218 | 3（与 1C 共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/20261125_sbdifusco_rbsmall_labelvar_single_w0_s0/train.log` | 11-25 18:00 |
 | 1E 对照：单解 + 扰动，加权 T = 1，独立配对 | 2602325 | 0（共用） | 同目录 `..._single_w0_T1_s0/train.log` | 11-25 18:30 |
 | 1E 对照：单解 + 扰动，加权 T = 0.5，独立配对 | 2602356 | 1（共用） | 同目录 `..._single_w0_T0.5_s0/train.log` | 11-25 18:30 |
 | 1E 对照：k128 多解，等权，独立配对 | 2602390 | 2（共用） | 同目录 `..._k128_w0_s0/train.log` | 11-25 18:30 |
+| 1E 势的预先计算（续）：多解 + 扰动 等权/T=1/T=0.5，ω = 0.35/0.5/1.0 | 2740681、2740682、2740683 | 0、1、2（共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_spec_mkamis_w*.log` | 约 14:30 |
+| 1E 对照：多解 + 扰动，等权，独立配对 | 2740382 | 5（共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/..._mkamis_w0_s0/train.log` | 11-25 19:00 |
+| 1E 对照：多解 + 扰动，加权 T = 1，独立配对 | 2740410 | 6（共用） | 同目录 `..._mkamis_w0_T1_s0/train.log` | 11-25 19:00 |
+| 1E 对照：多解 + 扰动，加权 T = 0.5，独立配对 | 2740438 | 7（共用） | 同目录 `..._mkamis_w0_T0.5_s0/train.log` | 11-25 19:00 |
+| 1D 流程冒烟测试（E0 = E = 1，L = 1，J = 2，种子 99，不进 wandb，结果不用） | 2618277 | 3（共用） | `runs/experiments/20261125_sbdifusco_rbsmall_imf_smoke.log` | 约 13:00 |
 | 2B sb：log-linear α = 0.5，带修正项，种子 0 | 2415828 | 无（CPU 8 线程） | `runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_sb_s0/train.log` | 11-25 12:50 |
 | 2B ml：memoryless（α = 0），无修正项，种子 0 | 2415840 | 无（CPU 8 线程） | 同目录 `..._ml_s0/train.log` | 11-25 12:50 |
 | 2B nocorr：α = 0.5 但不用修正项（对照），种子 0 | 2415852 | 无（CPU 8 线程） | 同目录 `..._nocorr_s0/train.log` | 11-25 12:50 |
@@ -111,3 +115,5 @@
   - 启动脚本与 README（含扰动分析表）已提交：`experiments/20261125_sbdifusco_rbsmall_labelvar/`。
 - 11-25 11:10：2B 评测脚本 `experiments/20261125_dasbs_crossgraph/evaluate.sh`（预先指定最后一个 epoch 的 checkpoint，不做选择），训练结束后自动跑。1E 的 ω > 0 势在 1C 出结果前先把三个候选都算上，省去关键路径上的等待；选定 ω 后其余两个不用。
 - 11-25 11:15：1E 中与 ω 无关的独立配对对照先开跑（单解 + 扰动 等权 / T = 1 / T = 0.5，k128 等权），每张 GPU 和一个 1C 训练共用。实测：训练 GPU 利用率只有约 30%（瓶颈在 CPU 端），两个训练共用一张卡时原训练每 epoch 由 47 秒变为 59 秒，新训练 59 秒，总吞吐约 1.6 倍。代价是 1C 第一种子推迟约 1 小时出结果（ω 的选择随之推迟）。1E 的 SB 组等 ω 选定后再开。
+- 11-25 11:20：1D 冒烟测试：第 0 轮（两个网络在独立配对上各训 1 个 epoch）正常；采样阶段每张训练图约 1 秒，一轮采样约 1 小时（两个网络并行），完整 1D（E0 = 100、E = 50、L = 3）约 8 小时。
+- 11-25 11:52：多解 + 扰动标签集完成：每图 116.7 个，期望大小 等权 19.47 / T = 1 19.96 / T = 0.5 20.10（统计表见 1E README）。ω = 0 加权势已算，三个独立配对对照已开跑（GPU 5–7，与基线第二种子共用）。
