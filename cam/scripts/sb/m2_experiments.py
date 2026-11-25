@@ -1,4 +1,4 @@
-"""Numerical experiments of stage M2 (docs/20261125/math_route2.md sections 7-8): time discretisation of the
+"""Numerical experiments of stage M2 (docs/20261125/math_route2.md sections 6, 9, 10): time discretisation of the
 tau-leaping sampler and its step rule, temperature annealing of the alternation, and the sizes of the negative controls.
 Run: python cam/scripts/sb/m2_experiments.py > docs/20261125/m2_experiments.txt"""
 import os
@@ -17,7 +17,8 @@ def setup(n, A, tau, ref, lam=2.0):
 
 def discretisation():
     print('== 1. tau-leaping (DASBS Alg. 1, first-order, controller frozen at the left end) with the EXACT controller')
-    print('graph n p tau schedule | TV(source, nu) | TV at 25 / 50 / 100 / 200 / 400 steps | max flip prob at 50 steps')
+    print('graph n p tau schedule | TV(source, nu) | TV at 25 / 50 / 100 / 200 / 400 steps | max flip prob at 50 steps'
+          ' | last of 50 steps: max over x of the summed flip probs, and P(no bit flips) at that x')
     for seed, (n, p) in enumerate([(8, 0.3), (8, 0.5), (7, 0.4)]):
         rng = np.random.default_rng(seed)
         A = de.random_graph(n, p, rng)
@@ -31,8 +32,12 @@ def discretisation():
                     if steps == 50:
                         w50 = worst
                 mono = all(a > b for a, b in zip(row, row[1:]))
+                lin = ref.Gamma(49 / 50, 1.0) / 2 * sb.controller(49 / 50)              # last step, (S, n)
+                x = lin.sum(1).argmax()
+                stay = np.prod(1 - np.clip(lin[x], 0, 1))
                 print(f'{seed} {n} {p} {tau} {ref.schedule:9s} | {de.tv(mu, nu):.3f} | '
-                      + ' / '.join(f'{v:.2e}' for v in row) + f' | {w50:.3f} | monotone={mono}')
+                      + ' / '.join(f'{v:.2e}' for v in row) + f' | {w50:.3f} | monotone={mono}'
+                      + f' | {lin.sum(1).max():.3f}, {stay:.3f}')
 
 
 def flip_rule():
@@ -113,8 +118,9 @@ def annealing():
         P01, _ = de.forward_half_bridge(mu, nu, lphh, ref, X)
         extra.append(de.tv(P01.sum(0), nu))
         lphh, _ = de.ratios_to_log_potential(de.corr_dm_map(P01, ref, X, nb), nb)
-    print('TV to the current target at temperature index 0/50/100/150/199:',
-          ' '.join(f'{trace[i]:.2e}' for i in (0, 50, 100, 150, 199)))
+    print('TV to the current target at temperature index 0/1/2/50/100/150/199:',
+          ' '.join(f'{trace[i]:.2e}' for i in (0, 1, 2, 50, 100, 150, 199)))
+    print(f'max over indices 1-199: {max(trace[1:]):.2e}; max over indices 2-199: {max(trace[2:]):.2e}')
     print('after the schedule ends, extra alternations 1/5/10/20/50:', ' '.join(f'{extra[i]:.2e}' for i in (0, 4, 9, 19, 49)))
 
 

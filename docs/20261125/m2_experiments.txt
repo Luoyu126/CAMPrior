@@ -1,23 +1,23 @@
 == 1. tau-leaping (DASBS Alg. 1, first-order, controller frozen at the left end) with the EXACT controller
-graph n p tau schedule | TV(source, nu) | TV at 25 / 50 / 100 / 200 / 400 steps | max flip prob at 50 steps
-0 8 0.3 1.0 constant  | 0.595 | 3.48e-02 / 1.69e-02 / 8.29e-03 / 4.10e-03 / 2.04e-03 | 0.917 | monotone=True
-0 8 0.3 1.0 loglinear | 0.595 | 1.86e-02 / 9.13e-03 / 4.52e-03 / 2.25e-03 / 1.12e-03 | 0.873 | monotone=True
-0 8 0.3 0.5 constant  | 0.779 | 4.99e-02 / 2.37e-02 / 1.14e-02 / 5.61e-03 / 2.77e-03 | 0.999 | monotone=True
-0 8 0.3 0.5 loglinear | 0.779 | 2.57e-02 / 1.24e-02 / 6.11e-03 / 3.02e-03 / 1.50e-03 | 0.999 | monotone=True
-0 8 0.3 0.3 constant  | 0.920 | 5.67e-02 / 2.59e-02 / 1.21e-02 / 5.75e-03 / 2.80e-03 | 1.000 | monotone=True
-0 8 0.3 0.3 loglinear | 0.920 | 2.57e-02 / 1.19e-02 / 5.71e-03 / 2.78e-03 / 1.37e-03 | 1.000 | monotone=True
-1 8 0.5 1.0 constant  | 0.678 | 3.80e-02 / 1.84e-02 / 9.01e-03 / 4.44e-03 / 2.20e-03 | 0.920 | monotone=True
-1 8 0.5 1.0 loglinear | 0.678 | 2.00e-02 / 9.80e-03 / 4.84e-03 / 2.40e-03 / 1.20e-03 | 0.882 | monotone=True
-1 8 0.5 0.5 constant  | 0.828 | 6.03e-02 / 2.88e-02 / 1.40e-02 / 6.91e-03 / 3.43e-03 | 0.999 | monotone=True
-1 8 0.5 0.5 loglinear | 0.828 | 3.04e-02 / 1.48e-02 / 7.30e-03 / 3.63e-03 / 1.81e-03 | 0.999 | monotone=True
-1 8 0.5 0.3 constant  | 0.909 | 8.12e-02 / 3.75e-02 / 1.75e-02 / 8.35e-03 / 4.06e-03 | 1.000 | monotone=True
-1 8 0.5 0.3 loglinear | 0.909 | 3.70e-02 / 1.72e-02 / 8.19e-03 / 3.99e-03 / 1.97e-03 | 1.000 | monotone=True
-2 7 0.4 1.0 constant  | 0.562 | 2.94e-02 / 1.43e-02 / 7.02e-03 / 3.48e-03 / 1.73e-03 | 0.682 | monotone=True
-2 7 0.4 1.0 loglinear | 0.562 | 1.57e-02 / 7.75e-03 / 3.84e-03 / 1.91e-03 / 9.55e-04 | 0.529 | monotone=True
-2 7 0.4 0.5 constant  | 0.786 | 4.06e-02 / 1.94e-02 / 9.40e-03 / 4.63e-03 / 2.29e-03 | 0.996 | monotone=True
-2 7 0.4 0.5 loglinear | 0.786 | 2.07e-02 / 1.01e-02 / 4.98e-03 / 2.47e-03 / 1.23e-03 | 0.994 | monotone=True
-2 7 0.4 0.3 constant  | 0.895 | 4.81e-02 / 2.20e-02 / 1.03e-02 / 4.92e-03 / 2.40e-03 | 1.000 | monotone=True
-2 7 0.4 0.3 loglinear | 0.895 | 2.17e-02 / 1.01e-02 / 4.84e-03 / 2.36e-03 / 1.17e-03 | 1.000 | monotone=True
+graph n p tau schedule | TV(source, nu) | TV at 25 / 50 / 100 / 200 / 400 steps | max flip prob at 50 steps | last of 50 steps: max over x of the summed flip probs, and P(no bit flips) at that x
+0 8 0.3 1.0 constant  | 0.595 | 3.48e-02 / 1.69e-02 / 8.29e-03 / 4.10e-03 / 2.04e-03 | 0.917 | monotone=True | 2.056, 0.041
+0 8 0.3 1.0 loglinear | 0.595 | 1.86e-02 / 9.13e-03 / 4.52e-03 / 2.25e-03 / 1.12e-03 | 0.873 | monotone=True | 1.675, 0.080
+0 8 0.3 0.5 constant  | 0.779 | 4.99e-02 / 2.37e-02 / 1.14e-02 / 5.61e-03 / 2.77e-03 | 0.999 | monotone=True | 3.061, 0.000
+0 8 0.3 0.5 loglinear | 0.779 | 2.57e-02 / 1.24e-02 / 6.11e-03 / 3.02e-03 / 1.50e-03 | 0.999 | monotone=True | 2.855, 0.000
+0 8 0.3 0.3 constant  | 0.920 | 5.67e-02 / 2.59e-02 / 1.21e-02 / 5.75e-03 / 2.80e-03 | 1.000 | monotone=True | 3.502, 0.004
+0 8 0.3 0.3 loglinear | 0.920 | 2.57e-02 / 1.19e-02 / 5.71e-03 / 2.78e-03 / 1.37e-03 | 1.000 | monotone=True | 3.277, 0.004
+1 8 0.5 1.0 constant  | 0.678 | 3.80e-02 / 1.84e-02 / 9.01e-03 / 4.44e-03 / 2.20e-03 | 0.920 | monotone=True | 3.020, 0.002
+1 8 0.5 1.0 loglinear | 0.678 | 2.00e-02 / 9.80e-03 / 4.84e-03 / 2.40e-03 / 1.20e-03 | 0.882 | monotone=True | 2.787, 0.004
+1 8 0.5 0.5 constant  | 0.828 | 6.03e-02 / 2.88e-02 / 1.40e-02 / 6.91e-03 / 3.43e-03 | 0.999 | monotone=True | 3.380, 0.000
+1 8 0.5 0.5 loglinear | 0.828 | 3.04e-02 / 1.48e-02 / 7.30e-03 / 3.63e-03 / 1.81e-03 | 0.999 | monotone=True | 3.192, 0.000
+1 8 0.5 0.3 constant  | 0.909 | 8.12e-02 / 3.75e-02 / 1.75e-02 / 8.35e-03 / 4.06e-03 | 1.000 | monotone=True | 3.960, 0.002
+1 8 0.5 0.3 loglinear | 0.909 | 3.70e-02 / 1.72e-02 / 8.19e-03 / 3.99e-03 / 1.97e-03 | 1.000 | monotone=True | 3.606, 0.004
+2 7 0.4 1.0 constant  | 0.562 | 2.94e-02 / 1.43e-02 / 7.02e-03 / 3.48e-03 / 1.73e-03 | 0.682 | monotone=True | 1.550, 0.102
+2 7 0.4 1.0 loglinear | 0.562 | 1.57e-02 / 7.75e-03 / 3.84e-03 / 1.91e-03 / 9.55e-04 | 0.529 | monotone=True | 1.181, 0.210
+2 7 0.4 0.5 constant  | 0.786 | 4.06e-02 / 1.94e-02 / 9.40e-03 / 4.63e-03 / 2.29e-03 | 0.996 | monotone=True | 2.184, 0.000
+2 7 0.4 0.5 loglinear | 0.786 | 2.07e-02 / 1.01e-02 / 4.98e-03 / 2.47e-03 / 1.23e-03 | 0.994 | monotone=True | 2.084, 0.000
+2 7 0.4 0.3 constant  | 0.895 | 4.81e-02 / 2.20e-02 / 1.03e-02 / 4.92e-03 / 2.40e-03 | 1.000 | monotone=True | 2.717, 0.025
+2 7 0.4 0.3 loglinear | 0.895 | 2.17e-02 / 1.01e-02 / 4.84e-03 / 2.36e-03 / 1.17e-03 | 1.000 | monotone=True | 2.389, 0.041
 
 == 2. temperature annealing of the exact alternation (controller = ctrl-AM fixed point, corrector = corr-DM)
 tau | stages to TV < 1e-4: cold start (all-one corrector) / warm start (previous tau) | TV if the corrector is NOT refitted after the change
@@ -31,7 +31,8 @@ tau | stages to TV < 1e-4: cold start (all-one corrector) / warm start (previous
 0.300 | 5 / 4 | 1.73e-02
 
 continuous annealing: ONE alternation per temperature, 200 temperatures from 2.0 to 0.3, then fixed tau = 0.3
-TV to the current target at temperature index 0/50/100/150/199: 3.01e-02 2.91e-04 6.20e-04 1.09e-03 6.18e-04
+TV to the current target at temperature index 0/1/2/50/100/150/199: 3.01e-02 2.16e-03 3.81e-04 2.91e-04 6.20e-04 1.09e-03 6.18e-04
+max over indices 1-199: 2.16e-03; max over indices 2-199: 1.10e-03
 after the schedule ends, extra alternations 1/5/10/20/50: 8.32e-05 3.09e-08 1.60e-12 5.12e-16 5.80e-16
 
 == 4. step rule of tau-leaping: linear (DASBS Prop. B.7, clipped) vs exp (1 - exp(-rate h)), exact controller
