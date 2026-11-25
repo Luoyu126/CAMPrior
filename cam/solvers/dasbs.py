@@ -39,7 +39,9 @@ Options for low temperature (stage 2C; all off by default, so 2B is unchanged):
                            the average, rollouts use the current parameters; <file>_raw.pt keeps the raw weights.
 """
 import copy
+import json
 import math
+import os
 
 import torch
 from torch import nn
@@ -298,4 +300,20 @@ class DASBS(ULSolver):
             else:
                 energy, _ = self.problem.energy_func(graph, score)
             best.append(energy)
+            if os.environ.get('CAM_DASBS_RAW'):
+                self.write_raw(graph, torch.bernoulli(score), energy)
         return torch.cat(best).min()
+
+    def write_raw(self, graph, x, energy):
+        """Diagnostic (CAM_DASBS_RAW=FILE, stage 2C): the sampler's own end states x (n, K) before decoding. One JSON
+        line per graph: share of chains without a violated edge, mean size and violated edges of the raw states,
+        mean size of the feasible ones, and mean / best size after greedy decoding."""
+        e0, e1 = graph.edge_index
+        viol = (x[e0] * x[e1]).sum(0) / 2                      # undirected edges stored twice
+        size = x.sum(0); ok = viol == 0
+        rec = dict(idx=int(torch.as_tensor(graph.idx).reshape(-1)[0]), n=int(x.shape[0]), chains=int(x.shape[1]),
+                   raw_feasible=float(ok.float().mean()), raw_size=float(size.mean()), raw_violations=float(viol.mean()),
+                   raw_size_feasible=float(size[ok].mean()) if ok.any() else None,
+                   decoded_mean=float((-energy).float().mean()), decoded_best=float((-energy).max()))
+        with open(os.environ['CAM_DASBS_RAW'], 'a') as f:
+            f.write(json.dumps(rec) + '\n')
