@@ -1,4 +1,4 @@
-"""Paired per-graph comparison of two settings X and Y (each: one or more run directories; per run, every evaluation
+"""Paired per-graph comparison of two settings X and Y (each: one or more run directories, several globs joined by commas; per run, every evaluation
 file matching TAG, e.g. 'anchor_renoise_t50_seed*'). Per graph: mean MIS size over Y's evaluations minus the mean over
 X's; mean difference with a graph-level bootstrap 95% CI (10000 resamples, seed 0), and the fractions of graphs where
 Y is better / worse. Graph identity is the file name, so both sides must be evaluated on the same set.
@@ -17,7 +17,7 @@ import numpy as np
 
 def arm(run_glob, tag):
     vals, files = [], None
-    for r in sorted(glob.glob(run_glob)):
+    for r in sorted(set(sum((glob.glob(g) for g in run_glob.split(',')), []))):   # comma: several globs
         for f in sorted(glob.glob(f'{r}/{tag}_result.txt.per_graph.csv')):
             rows = sorted(csv.DictReader(open(f)), key=lambda x: x['file'])
             ff = [x['file'] for x in rows]
