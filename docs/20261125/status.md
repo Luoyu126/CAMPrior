@@ -26,21 +26,20 @@
 
 | 任务 | 进程号 | GPU | 日志 | 预计结束（UTC） |
 |---|---|---|---|---|
-| 1C ω = 0.35 种子 1（sb_w0.35_soft_s1） | 2820987 | 5（与 1E 对照共用） | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_sb_w0.35_soft_s1/train.log` | 11-25 19:00 |
-| 1C ω = 0.5 种子 1（sb_w0.5_soft_s1） | 2821018 | 6（共用） | 同目录 `..._sb_w0.5_soft_s1/train.log` | 11-25 19:00 |
-| 1C ω = 1.0 种子 1（sb_w1.0_soft_s1） | 2821054 | 7（共用） | 同目录 `..._sb_w1.0_soft_s1/train.log` | 11-25 19:00 |
-| 基线评测队列（两个基线 × 两个种子：锚点 50/20/10/5 步 × 两种采样器，另有成对追踪） | 2453475（队列） | 4 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log` | 约 14:00 |
-| 1B 回归训练：SB 代码路径 ω = 0（sb_w0_soft_s0） | 1689431 | 0 | 同目录 `..._sb_w0_soft_s0/train.log` | 11-25 17:40（见执行记录 13:25） |
-| 1C ω = 0.35 种子 0（sb_w0.35_soft_s0） | 1689459 | 3 | 同目录 `..._sb_w0.35_soft_s0/train.log` | 11-25 16:30 |
-| 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 17:50 |
-| 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 18:00 |
-| 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 16:30–18:00 结束，评测各约 20 分钟 |
+| 1C ω = 0.35 种子 1（sb_w0.35_soft_s1） | 2820987 | 5（与 1E 对照共用） | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_sb_w0.35_soft_s1/train.log` | 11-25 20:30（每 epoch 约 76 秒） |
+| 1C ω = 0.5 种子 1（sb_w0.5_soft_s1） | 2821018 | 6（共用） | 同目录 `..._sb_w0.5_soft_s1/train.log` | 11-25 20:30（每 epoch 约 76 秒） |
+| 1C ω = 1.0 种子 1（sb_w1.0_soft_s1） | 2821054 | 7（共用） | 同目录 `..._sb_w1.0_soft_s1/train.log` | 11-25 20:30（每 epoch 约 76 秒） |
+| 1B 回归训练：SB 代码路径 ω = 0（sb_w0_soft_s0） | 1689431 | 0 | 同目录 `..._sb_w0_soft_s0/train.log` | 11-25 18:15（每 epoch 约 76 秒） |
+| 1C ω = 0.35 种子 0（sb_w0.35_soft_s0） | 1689459 | 3 | 同目录 `..._sb_w0.35_soft_s0/train.log` | 11-25 16:50（每 epoch 约 76 秒） |
+| 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 18:30（每 epoch 约 76 秒） |
+| 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 18:50（每 epoch 约 76 秒） |
+| 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 16:50–18:50 结束，评测各约 25 分钟 |
 | 2B 自动接续：各 run 写出 epoch_0047.pt 后跑精确评测（test、valid、wl 三组并行，各 4 线程，CPU） | 2583343 | — | `runs/experiments/20261125_dasbs_crossgraph/after_train.log`；结果 `exact_<set>_epoch_0047.jsonl` | 12:50 开始，约 1 小时，~13:50 |
 | 1E 对照：单解 + 扰动，等权，独立配对（ω = 0） | 2588218 | 3（与 1C 共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/20261125_sbdifusco_rbsmall_labelvar_single_w0_s0/train.log` | 11-25 18:00 |
 | 1E 对照：单解 + 扰动，加权 T = 1，独立配对 | 2602325 | 0（共用） | 同目录 `..._single_w0_T1_s0/train.log` | 11-25 18:30 |
 | 1E 对照：单解 + 扰动，加权 T = 0.5，独立配对 | 2602356 | 1（共用） | 同目录 `..._single_w0_T0.5_s0/train.log` | 11-25 18:30 |
 | 1E 对照：k128 多解，等权，独立配对 | 2602390 | 2（共用） | 同目录 `..._k128_w0_s0/train.log` | 11-25 18:30 |
-| 1E 势的预先计算（续，已截断）：只剩 多解 + 扰动 ω = 0.35 T = 0.5、ω = 1.0 等权 两个在跑；其余取消，选定 ω 后补算 | 2740681（队列）、2894108 | 0、2（共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_spec_mkamis_w*.log` | 约 13:45 |
+| 1E 剩余的势：多解 + 扰动 ω = 0.5 T = 0.5、ω = 1.0 T = 1、T = 0.5（GPU 4 上无训练，不会拖慢别人） | 3132215 | 4 | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/precompute_rest.log` | 约 16:00 |
 | 1E 对照：多解 + 扰动，等权，独立配对 | 2740382 | 5（共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/..._mkamis_w0_s0/train.log` | 11-25 19:00 |
 | 1E 对照：多解 + 扰动，加权 T = 1，独立配对 | 2740410 | 6（共用） | 同目录 `..._mkamis_w0_T1_s0/train.log` | 11-25 19:00 |
 | 1E 对照：多解 + 扰动，加权 T = 0.5，独立配对 | 2740438 | 7（共用） | 同目录 `..._mkamis_w0_T0.5_s0/train.log` | 11-25 19:00 |
@@ -136,3 +135,11 @@
 
   （起点分布的总变差 0.714。）最后几个 epoch 变好，多半是因为学习率按余弦衰减到接近 0。结论：最终数字主要取决于振荡停在哪里。另一个混杂因素：sb 每阶段 200 次控制器 + 100 次修正项，控制器只得到 4000 次更新，ml/nocorr 是 6000 次。
 - 11-25 13:35：**2B 第 1 轮修复**，依据 DASBS 原文 App. C："We always use exponential moving average (EMA) to stabilize the training"（原文 decay 0.9999、总共约 3750 步；这里 6000–9000 步，用 0.999）。三组都加 EMA；sb 改为每阶段 300 + 150、72 epoch，使控制器更新次数与 ml、nocorr 相同（都是 6000）。checkpoint 仍预先指定为最后一个 epoch（EMA 权重），不做选择。原始三组的完整评测照常跑完并记录为"修复前"。
+- 11-25 14:13：基线评测完成（`runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log`）。验证锚点（第 64–499 张），50 步，sampler B（renoise），20 个样本取最好：
+
+  | 基线 | 种子 0 | 种子 1 |
+  |---|---|---|
+  | 独立配对，随机抽一个标签 | 19.922 | 19.947 |
+  | 独立配对，软目标 | 19.924 | 19.915 |
+
+  种子间差 ≤ 0.025。D3PM 后验采样（sampler A）比 renoise 低约 0.33，与 11-19 的结论一致。GPU 4 空出后用来补算 1E 剩余的势（不与训练共用）。
