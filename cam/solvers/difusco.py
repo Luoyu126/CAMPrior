@@ -389,6 +389,16 @@ class DIFUSCO(SLSolver):
         sol = sol.float()
         return sol * x0 if self.sampler == 'renoise_feasible' else sol
 
+    def write_pair_trace(self, graph, start, final):
+        """Append one JSON line per graph (env CAM_SB_PAIR_TRACE=FILE, UPSTREAM.md item 69): the graph's dataset
+        index, and per chain its start z and decoded final solution as hex bit strings (node order of the loader)."""
+        def hexs(m):   # (n, k) 0/1 -> k hex strings of the n bits
+            bits = m.round().long().cpu().T.tolist()
+            return [format(int(''.join(map(str, b)), 2), 'x') for b in bits]
+        idx = int(torch.as_tensor(graph.idx).reshape(-1)[0]) if hasattr(graph, 'idx') else -1
+        with open(os.environ['CAM_SB_PAIR_TRACE'], 'a') as f:
+            f.write(json.dumps({'idx': idx, 'n': graph.num_nodes, 'start': hexs(start), 'final': hexs(final.float())}) + '\n')
+
     def evaluate_single(self, graph):
         best_energies = []
         for _ in range(self.num_repetition):
@@ -404,6 +414,10 @@ class DIFUSCO(SLSolver):
                 graph.A = A
                 num_nodes = graph.num_nodes
                 solution = torch.randint(0,2,size=(num_nodes,self.num_k), device=self.accelerator.device, dtype=torch.float)
+                if os.environ.get('CAM_SB_PAIR_TRACE'):   # diagnostic (UPSTREAM.md item 69): chains 2j, 2j+1
+                    assert self.num_k % 2 == 0           # share their start
+                    solution[:, 1::2] = solution[:, 0::2]
+                start = solution.clone()
                 if self.sb:
                     self.sb_z = solution.clone()   # the noise end z of every chain (sampler B bridges back to it)
     
@@ -421,6 +435,8 @@ class DIFUSCO(SLSolver):
                     solution = self.categorical_posterior(t2, t1, x0_pred_prob, solution)
     
             best_energy, final = self.problem.evaluate(graph, solution)
+            if self.solution_type == 'node' and os.environ.get('CAM_SB_PAIR_TRACE'):
+                self.write_pair_trace(graph, start, final)
             if trace is not None:
                 self.trace_inputs(graph, trace, final.float())
             best_energies.append(best_energy)

@@ -335,7 +335,9 @@ shows only the items below).
     unchanged (on the new Q_bar); `renoise` / `renoise_decode` re-noise through the bridge back to the chain's own
     start z (sampler B). Off by default: without `--sb_coupling` nothing changes. Diagnostics: `CAM_LOSS_TRACE=file`
     appends each step's loss; with `--sb_omega 0` and `CAM_SB_LEGACY_DRAWS=1` the existing draws are kept and the
-    existing soft-target loss is traced next to the SB one (equal on 200 steps). Checks:
+    existing soft-target loss is traced next to the SB one (equal on 200 steps). `CAM_SB_PAIR_TRACE=file` (node
+    problems, even `--num_k`): chains 2j and 2j+1 share their start, and one JSON line per graph records the dataset
+    index, the starts and the decoded finals (hex bit strings) for `scripts/sb/start_dependence.py`. Checks:
     `scripts/sb/check_difusco_sb_sampler.py` (both samplers end on pi1 with an exact tabular posterior).
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
