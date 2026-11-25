@@ -33,6 +33,12 @@ COMMON=(--train_path $D/RB_small_train --valid_path $D/RB_small_valid --problem 
         --sb_coupling --sb_omega "$W" --label_choice soft --wandb_name SLVUL)
 cd "$REPO/cam"
 log() { echo "$(date '+%F %T') $*" | tee -a "$OUT/imf.log"; }
+pair() {    # <cmd1 ...> -- <cmd2 ...>: run both in parallel, stop if either fails
+    local a=() b=() s=0; for x in "$@"; do [ "$x" = -- ] && { s=1; continue; }; [ $s = 0 ] && a+=("$x") || b+=("$x"); done
+    "${a[@]}" & local p1=$!; "${b[@]}" & local p2=$!
+    wait $p1 || { log "FAILED: ${a[*]}"; kill $p2 2>/dev/null; exit 1; }
+    wait $p2 || { log "FAILED: ${b[*]}"; exit 1; }
+}
 
 train() {   # <gpu> <fwd|bwd> <iteration> <cache> <epochs> [checkpoint]
     local gpu=$1 net=$2 it=$3 cache=$4 ep=$5 ck=${6:-}
@@ -65,18 +71,18 @@ fi
 for it in $(seq 0 "$L"); do
     if [ "$it" -gt 0 ]; then
         log "iteration $it: sampling"
-        trace "$GF" fwd "$it" & trace "$GB" bwd "$it" & wait
+        pair trace "$GF" fwd "$it" -- trace "$GB" bwd "$it"
         "$CAM_PYTHON" scripts/sb/imf_cache.py from_trace --trace "$OUT/caches/trace_fwd_it$it.jsonl" --direction fwd \
-            --out "$OUT/caches/b$it.pt" --label_set "$LS" --logg "$LOGG" >> "$OUT/imf.log" 2>&1
+            --out "$OUT/caches/b$it.pt" --label_set "$LS" --logg "$LOGG" >> "$OUT/imf.log" 2>&1 || { log "FAILED: cache b$it"; exit 1; }
         "$CAM_PYTHON" scripts/sb/imf_cache.py from_trace --trace "$OUT/caches/trace_bwd_it$it.jsonl" --direction bwd \
-            --out "$OUT/caches/f$it.pt" --label_set "$LS" --logg "$LOGG" >> "$OUT/imf.log" 2>&1
+            --out "$OUT/caches/f$it.pt" --label_set "$LS" --logg "$LOGG" >> "$OUT/imf.log" 2>&1 || { log "FAILED: cache f$it"; exit 1; }
         PF="$OUT/fwd_it$((it - 1))/epoch_$(printf %04d $(( (it == 1 ? E0 : E) - 1 ))).pt"
         PB="$OUT/bwd_it$((it - 1))/epoch_$(printf %04d $(( (it == 1 ? E0 : E) - 1 ))).pt"
         log "iteration $it: training"
-        train "$GF" fwd "$it" "$OUT/caches/f$it.pt" "$E" "$PF" & train "$GB" bwd "$it" "$OUT/caches/b$it.pt" "$E" "$PB" & wait
+        pair train "$GF" fwd "$it" "$OUT/caches/f$it.pt" "$E" "$PF" -- train "$GB" bwd "$it" "$OUT/caches/b$it.pt" "$E" "$PB"
     else
         log "iteration 0: training on the independent coupling"
-        train "$GF" fwd 0 "$OUT/caches/f0.pt" "$E0" "$BASE" & train "$GB" bwd 0 "$OUT/caches/b0.pt" "$E0" & wait
+        pair train "$GF" fwd 0 "$OUT/caches/f0.pt" "$E0" "$BASE" -- train "$GB" bwd 0 "$OUT/caches/b0.pt" "$E0"
     fi
     log "iteration $it done: fwd best $(grep -a 'eval/mis_size' "$OUT/fwd_it$it/train.log" | awk '{print $NF}' | sort -g | tail -1)"
 done
