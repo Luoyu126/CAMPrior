@@ -107,7 +107,7 @@ class MISGraph(object):
 @dataclass(frozen=True)
 class UniformFlipReference(object):
     """Every bit flips at rate gamma_t / 2. 'constant': gamma_t = gamma; 'log_linear': gamma_t = gamma / (t + alpha)
-    (DASBS App. B.5). Gamma(s, t) = int_s^t gamma; the kernel over [s, t] flips each bit w.p. (1 - e^-Gamma) / 2."""
+    (DASBS App. B.5; alpha = 0 is memoryless: Gamma(0, t) = inf, every bit uniform at any t > 0). Gamma(s, t) = int_s^t gamma; the kernel over [s, t] flips each bit w.p. (1 - e^-Gamma) / 2."""
     schedule: str = 'log_linear'
     gamma: float = 1.0
     alpha: float = 0.5
@@ -115,8 +115,10 @@ class UniformFlipReference(object):
     def __post_init__(self):
         if self.schedule not in ('constant', 'log_linear'):
             raise ValueError('unknown noise schedule')
-        if not math.isfinite(self.gamma) or self.gamma <= 0 or not math.isfinite(self.alpha) or self.alpha <= 0:
-            raise ValueError('gamma and alpha must be positive and finite')
+        if not math.isfinite(self.gamma) or self.gamma <= 0 or not math.isfinite(self.alpha) or self.alpha < 0:
+            raise ValueError('gamma must be positive and alpha non-negative, both finite')
+        if self.alpha == 0 and self.schedule != 'log_linear':
+            raise ValueError('alpha = 0 (memoryless) needs the log-linear schedule')
 
     def integral(self, s, t):
         s, t = torch.broadcast_tensors(torch.as_tensor(s), torch.as_tensor(t))
