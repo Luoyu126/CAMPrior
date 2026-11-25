@@ -31,10 +31,11 @@
 | 2C sb（α = 0.5）种子 0 | 3841451 | 0 | `runs/experiments/20261125_dasbs_rbsmall/20261125_dasbs_rbsmall_sb_a0.5_s0/train.log` | 11-26 06:00 |
 | 2C ml 种子 0 | 3841480 | 1 | 同目录 `..._ml_s0/train.log` | 11-26 06:00 |
 | 2C sb（α = 0.5）种子 1 | 3843032 | 2 | 同目录 `..._sb_a0.5_s1/train.log` | 11-26 06:30 |
-| 2C ml 种子 1 | 3843093 | 4 | 同目录 `..._ml_s1/train.log` | 11-26 06:30 |
-| 1B 诊断：单卡独立配对软目标种子 0 | 3817983 | 4 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_soft_s0/train.log` | 11-25 23:00 |
-| 1B 诊断 / 1C 配套基线：单卡 ω = 0 种子 1 | 3818040 | 3 | 同目录 `..._sb_w0_soft_s1/train.log` | 11-25 23:30 |
-| 1E SB（ω = 0.35）× 7：单解 + 扰动 等权 / T = 1 / T = 0.5，多解 + 扰动 等权 / T = 1 / T = 0.5，k128 | 3899848、3899873、3899899、3899925、3899951、3899977、3900014 | 5、5、6、6、7、7、3 | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/..._w0.35*_s0/train.log` | 11-26 02:00 左右 |
+| 2C ml 种子 1 | 3843093 | 4 | 同目录 `..._ml_s1/train.log` | 11-26 09:00 |
+| 1B 诊断：单卡独立配对软目标种子 0 | 3817983 | 4 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_soft_s0/train.log` | 11-26 05:45（与 2C 共用 GPU 4，每 epoch 约 110 秒） |
+| 1B 诊断 / 1C 配套基线：单卡 ω = 0 种子 1 | 3818040 | 3 | 同目录 `..._sb_w0_soft_s1/train.log` | 11-26 01:00 |
+| 1E SB（ω = 0.35）× 7：单解 + 扰动 等权 / T = 1 / T = 0.5，多解 + 扰动 等权 / T = 1 / T = 0.5，k128 | 3899848、3899873、3899899、3899925、3899951、3899977、3900014 | 5、5、6、6、7、7、3 | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/..._w0.35*_s0/train.log` | 11-26 02:00–02:45 |
+| 自动评测：1E 的 7 个 SB run，训练结束后在原 GPU 上评测 | 3997509 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_lv_sb.log` | 11-26 03:30 |
 | 1D 迭代马尔可夫拟合（ω = 0.35，前向 GPU 3、后向 GPU 5；E0 = 100、E = 50、L = 3、J = 16） | 3907227 | 3、5 | `runs/experiments/20261125_sbdifusco_rbsmall_imf/20261125_sbdifusco_rbsmall_imf_w0.35_s0/imf.log` | 11-26 06:00 左右 |
 | 自动评测：1E 剩余 3 个对照、单卡 ω = 0 种子 1、单卡基线，训练结束后评测 | 3906666 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_rest.log` | 11-26 00:00 |
 
