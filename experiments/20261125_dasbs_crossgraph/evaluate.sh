@@ -19,7 +19,7 @@ source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 source "$REPO/cam/scripts/env.sh"
 export WANDB_MODE=disabled OMP_NUM_THREADS=4 CUDA_VISIBLE_DEVICES=""   # the three sets run in parallel
 D=/usr0/home/shengyuf/yunyi/data/sb_small
-RUN="$REPO/runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_${MODE}_s$SEED"
+RUN="$REPO/runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_${MODE}_s$SEED${TAG:+_$TAG}"   # TAG as in launch.sh
 cd "$REPO/cam"
 for SET in test valid wl; do
   OUT="$RUN/exact_${SET}_${CK}.jsonl"
