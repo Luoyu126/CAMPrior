@@ -34,7 +34,8 @@
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
 | 自动接续：等基线第二种子结束后，在 GPU 5/6/7 启动 1C 的 ω = 0.35/0.5/1.0 第二种子，在 GPU 4 依次评测基线（锚点 50/20/10/5 步 × 两种采样器；起点成对追踪） | 2453475 | 4–7（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log` | 启动 11-25 11:35；评测约 12:30 结束 |
 | 1E 扰动标签集构造：多解 + 扰动（单解 + 扰动已完成） | 2442545 | 无（CPU） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/mkamis_repair10.log` | 11-25 12:40 |
-| 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559892 | 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 13:45–14:10 结束，评测各约 20 分钟 |
+| 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 13:45–14:10 结束，评测各约 20 分钟 |
+| 2B 自动接续：各 run 写出 epoch_0047.pt 后跑精确评测（test、valid、wl 三组并行，各 4 线程，CPU） | 2583343 | — | `runs/experiments/20261125_dasbs_crossgraph/after_train.log`；结果 `exact_<set>_epoch_0047.jsonl` | 12:50 开始，约 1 小时，~13:50 |
 | 2B sb：log-linear α = 0.5，带修正项，种子 0 | 2415828 | 无（CPU 8 线程） | `runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_sb_s0/train.log` | 11-25 12:50 |
 | 2B ml：memoryless（α = 0），无修正项，种子 0 | 2415840 | 无（CPU 8 线程） | 同目录 `..._ml_s0/train.log` | 11-25 12:50 |
 | 2B nocorr：α = 0.5 但不用修正项（对照），种子 0 | 2415852 | 无（CPU 8 线程） | 同目录 `..._nocorr_s0/train.log` | 11-25 12:50 |
