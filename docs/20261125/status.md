@@ -18,7 +18,7 @@
 | 1E 标签变体 | 进行中 | 11-25 10:28 | | 前置分析完成：选定扰动为"翻转 10% 的位后贪心修复成极大独立集"；加权 π1 的代码与测试已提交；训练要等 1C 选出 ω | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/stats_*.txt`、`cam/scripts/sb/perturb_labels.py`、`cam/tests/test_sb_weights.py` |
 | 1F 加固 | 未开始 | | | | |
 | 2A 迁移单图 DASBS | 通过 | 11-25 09:55 | 11-25 10:25 | 迁移后 16 项测试通过；15 个阶段后总变差 path6 0.092 ± 0.021、cycle8 0.135 ± 0.023（标准 0.09 / 0.14 ± 0.05），path6 三个种子与 11-15 完全相同；修正项改在 t = 0 回归：0.085 / 0.161，差别在种子间波动之内 | `experiments/20261125_dasbs_smallgraph/README.md` |
-| 2B 跨图共享，小图验证 | 进行中 | 11-25 10:15 | | 标准 1（memoryless 特例与 M2 一致）已在单元测试中满足；三组训练（sb、ml、nocorr）在 CPU 上进行中 | `experiments/20261125_dasbs_crossgraph/`、`cam/tests/test_dasbs_solver.py` |
+| 2B 跨图共享，小图验证 | 进行中（第 1 轮诊断修复） | 11-25 10:15 | | 标准 1 通过（单元测试）。第 0 轮：sb 在测试集上标准 2 不过（总变差 0.211 > 0.20）、标准 3 不过（能量相差 23%）；对照 ml 0.176 / 4%、nocorr 0.192 / 5% 都满足。诊断：三组训练都剧烈振荡；sb 控制器更新次数少。第 1 轮修复（EMA + 等量控制器更新）训练中 | `experiments/20261125_dasbs_crossgraph/README.md` |
 | 2C RB-small 训练 | 未开始 | | | | |
 | R 总报告 | 未开始 | | | | |
 
@@ -34,7 +34,6 @@
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 18:30（每 epoch 约 76 秒） |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 18:50（每 epoch 约 76 秒） |
 | 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559895（4 个子 shell 各等一个 GPU）| 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 16:50–18:50 结束，评测各约 25 分钟 |
-| 2B 自动接续：各 run 写出 epoch_0047.pt 后跑精确评测（test、valid、wl 三组并行，各 4 线程，CPU） | 2583343 | — | `runs/experiments/20261125_dasbs_crossgraph/after_train.log`；结果 `exact_<set>_epoch_0047.jsonl` | 12:50 开始，约 1 小时，~13:50 |
 | 1E 对照：单解 + 扰动，等权，独立配对（ω = 0） | 2588218 | 3（与 1C 共用） | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/20261125_sbdifusco_rbsmall_labelvar_single_w0_s0/train.log` | 11-25 18:00 |
 | 1E 对照：单解 + 扰动，加权 T = 1，独立配对 | 2602325 | 0（共用） | 同目录 `..._single_w0_T1_s0/train.log` | 11-25 18:30 |
 | 1E 对照：单解 + 扰动，加权 T = 0.5，独立配对 | 2602356 | 1（共用） | 同目录 `..._single_w0_T0.5_s0/train.log` | 11-25 18:30 |
