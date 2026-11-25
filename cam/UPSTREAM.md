@@ -312,6 +312,11 @@ shows only the items below).
     KaMIS arms of `20261119_difusco_rbsmall_reach` (q5_mkamis*) trained on scrambled labels. The script now permutes
     the columns to the loader's order; `*_loaderorder.pt` are the old files permuted (same subsets). Every other MIS
     label set (RLSA, DiffUCO, CAM samples, all built through the loader) checked valid.
+67. `utils/sb_coupling.py` (new, local): Schrödinger bridge between Bernoulli(0.5)^n and a graph's label set under
+    the bit-flip reference (route 1 of `docs/20261125/plan.md`). Sinkhorn for the label potential g, the label
+    posterior P*(y | x_k) ∝ g K_{a_k}, the per-bit reference bridge, and the SB signal schedule
+    a_k = a_T + (1 - a_T) a~_k built from the existing cosine Q_bar (a_T = 0 reproduces it exactly). Not wired into
+    `solvers/difusco.py` yet. Derivations: `docs/20261125/math_route1.md`; test: `tests/test_sb_coupling.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
