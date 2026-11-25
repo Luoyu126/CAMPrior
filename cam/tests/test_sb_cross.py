@@ -1,7 +1,7 @@
 """Stage M3 of docs/20261125/plan.md: route 2's exact SB (utils/dasbs_exact.py, DASBS conventions) with the target
 nu = pi1 on a label set equals route 1's Sinkhorn coupling (utils/sb_coupling.py, DIFUSCO conventions).
 
-Correspondence (math_route2.md §9):
+Correspondence (math_route2.md §11):
     route 2 time t in [0, 1], source mu = uniform at t = 0, target at t = 1
     route 1 index k, noise end z at k = T, data end y at k = 0
     route 1 signal between the data end and x_k  <->  exp(-Gamma(t, 1)) in route 2   (so a_T <-> exp(-Gamma(0, 1)))
@@ -62,14 +62,13 @@ def test_route2_exact_equals_route1_sinkhorn(sched):
 
         for t in (0.0, 0.2, 0.5, 0.8, 0.95, 1.0):
             a_k = ref.signal(t, 1.0)
-            # route 1 marginal at the index with signal a_k: sum_{z,m} pi*(z, m) R(x | s_m, z)
-            Ky = de.channel(X[idx], X, a_k)                                 # (m, x) K_{a_k}(x | s_m)
-            if a_k > a_T:
-                Kz = de.channel(X, X, a_T / a_k)                            # (x, z) K_{a_T/a_k}(z | x)
-                Kyz = de.channel(X[idx], X, a_T)                            # (m, z)
-                P1 = np.einsum('zm,mx,xz->x', J1 / Kyz.T, Ky, Kz)
-            else:                                                           # t = 0: the noise end itself
-                P1 = J1.sum(1)
+            # route 1 marginal at the index with signal a_k: sum_{z,m} pi*(z, m) prod_i bridge(x_i | s_m,i, z_i), with
+            # route 1's own per-bit bridge sb.bridge_prob1 (no route-2 code on this side)
+            Z = Xt[:, None, :].expand(S, len(idx), n).reshape(-1, n)
+            Y = labels[None, :, :].expand(S, len(idx), n).reshape(-1, n)
+            p1 = sb.bridge_prob1(Y, Z, a_k, a_T).numpy()                     # (pairs, n)
+            law = np.prod(np.where(X[None, :, :] == 1, p1[:, None, :], 1 - p1[:, None, :]), axis=2)   # (pairs, x)
+            P1 = J1.reshape(-1) @ law
             worst['marginal'] = max(worst['marginal'], de.tv(P1, sb2.marginal(t)))
             if t < 1.0:
                 post1 = sb.label_log_posterior(Xt, labels, log_g, a_k).exp().numpy()          # (x, m)
