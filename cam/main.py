@@ -39,7 +39,7 @@ def main():
     parser.add_argument("--num_d", type=int, default=30, help='step size')
     parser.add_argument("--tau0", type=float, default=0.1, help='initial temperature')
     parser.add_argument("--tau1", type=float, default=0.0, help='final temperature')
-    parser.add_argument('--temp_schedule', default='linear', choices = ["linear", "cosine", "exp"], help='Define the Annealing Schedule')
+    parser.add_argument('--temp_schedule', default='linear', choices = ["linear", "cosine", "exp", "geometric"], help='Define the Annealing Schedule')
     parser.add_argument("--lambd", type=float, default=0.0, help='regularization coefficient')
     parser.add_argument("--beta", type=float, default=1.02, help='penalty coefficient')
     parser.add_argument('--inference_schedule', type=str, default='linear', choices=['cosine', 'linear'])

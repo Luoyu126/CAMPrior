@@ -4,6 +4,8 @@ class TempScheduler(object):
             self.temp_scheduler = self.__linear_annealing
         elif schedule == 'exp':
             self.temp_scheduler = self.__exp_annealing
+        elif schedule == 'geometric':      # tau0 * (tau1 / tau0)^(progress): equal time per decade of tau
+            self.temp_scheduler = self.__geometric_annealing
         else:
             raise NotImplementedError
 
@@ -26,6 +28,13 @@ class TempScheduler(object):
         
         return tau 
     
+    def __geometric_annealing(self, epoch):
+        if epoch < self.N_warmup:
+            return self.tau0
+        if epoch >= self.N_warmup + self.N_anneal:
+            return self.tau1
+        return self.tau0 * (self.tau1 / self.tau0) ** ((epoch - self.N_warmup) / self.N_anneal)
+
     def __exp_annealing(self, epoch):
         if epoch < self.N_warmup:
             tau = self.tau0
