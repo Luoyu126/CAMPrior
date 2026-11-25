@@ -33,14 +33,15 @@
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 14:00 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
 | 自动接续：等基线第二种子结束后，在 GPU 5/6/7 启动 1C 的 ω = 0.35/0.5/1.0 第二种子，在 GPU 4 依次评测基线（锚点 50/20/10/5 步 × 两种采样器；起点成对追踪） | 2453475 | 4–7（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_baselines_s1.log` | 启动 11-25 11:35；评测约 12:30 结束 |
-| 1E 扰动标签集构造：单解 + 扰动、多解 + 扰动（翻转 10% 后贪心修复） | 2442543、2442545 | 无（CPU） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/{single,mkamis}_repair10.log` | 11-25 11:30 |
+| 1E 扰动标签集构造：多解 + 扰动（单解 + 扰动已完成） | 2442545 | 无（CPU） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/mkamis_repair10.log` | 11-25 12:40 |
+| 自动接续：SB 第一种子各自训练结束后，在原 GPU 上评测（锚点 50/20/10/5 步 × 两种采样器；成对追踪） | 2559892 | 0–3（接续后） | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_sb_s0.log` | 训练 13:45–14:10 结束，评测各约 20 分钟 |
 | 2B sb：log-linear α = 0.5，带修正项，种子 0 | 2415828 | 无（CPU 8 线程） | `runs/experiments/20261125_dasbs_crossgraph/20261125_dasbs_crossgraph_sb_s0/train.log` | 11-25 12:50 |
 | 2B ml：memoryless（α = 0），无修正项，种子 0 | 2415840 | 无（CPU 8 线程） | 同目录 `..._ml_s0/train.log` | 11-25 12:50 |
 | 2B nocorr：α = 0.5 但不用修正项（对照），种子 0 | 2415852 | 无（CPU 8 线程） | 同目录 `..._nocorr_s0/train.log` | 11-25 12:50 |
 
 ## 待用户确认
 
-（无）
+- 1D 验收标准 2（"学到的配对代价与闭式配对相差 < 10%"）偏弱：ω = 0.5 时独立配对本身只差 3.1%。按原标准记录，另报"缩小差距的比例"。见执行记录 11-25 10:50–11:05。
 
 ## 执行记录
 
@@ -91,3 +92,14 @@
   - **评测**额外记录采样器原始终点的可行比例和大小（解码前后）。
   - 测试 `cam/tests/test_dasbs_solver.py` 7 项通过。
   - 启动和评测脚本已提交：`experiments/20261125_dasbs_rbsmall/`。
+- 11-25 10:50–11:05：1D 代码。
+  - 后向网络 `--sb_reverse`：信号表反转为 b_k = a_T / a_{T−k}，预测起点 z。
+  - 配对缓存训练 `--sb_pair_cache`：软目标是缓存配对构成的经验配对下的精确后验。
+  - 缓存构造 `cam/scripts/sb/imf_cache.py`；迭代脚本 `experiments/20261125_sbdifusco_rbsmall_imf/run_imf.sh`。
+  - 测试 `cam/tests/test_difusco_sb_reverse.py` 3 项通过：后向采样器配精确后验时，终点配对服从 SB 配对（卡方 p = 0.93 / 0.69）；用独立配对的后验时偏离（反向对照）。
+  - 原有路线 1 的测试（36 项）和采样器检查全部仍然通过。
+  - **注意（1D 验收标准 2 偏弱）**：ω = 0.5 时，独立配对的平均 Hamming 代价（113.7）只比闭式 SB 配对（110.3）高 3.1%，所以"与闭式配对相差 < 10%"在第 0 轮就已满足。结果按原标准记录，另外报告"缩小了多少差距"=（独立 − 学到）/（独立 − 闭式）。**待用户确认**这个标准是否要改。
+- 11-25 11:05：1E 准备。
+  - 单解 + 扰动标签集完成：每图平均 27.5 个，平均大小 19.05；按大小加权后，T = 1 时 19.69，T = 0.5 时 19.97。
+  - ω = 0 的加权势已算好（`logg_single_w0_T{1,0.5}.pt`）。
+  - 启动脚本与 README（含扰动分析表）已提交：`experiments/20261125_sbdifusco_rbsmall_labelvar/`。
