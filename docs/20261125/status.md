@@ -17,7 +17,7 @@
 | 1D 学出来的配对 | 未开始 | | | | |
 | 1E 标签变体 | 未开始 | | | | |
 | 1F 加固 | 未开始 | | | | |
-| 2A 迁移单图 DASBS | 进行中 | 11-25 09:55 | | 代码迁移完成并提交（`cam/utils/dasbs.py`、`cam/scripts/sb/dasbs_single.py`），16 项测试通过，小配置上与原工作树逐位相同。M2 通过后 10:10 启动复现：path6、cycle8 × 3 个种子 × 2 种修正项时间（原做法 t ~ U[0, 0.99]；M2 建议的 t = 0），15 个阶段 | `cam/tests/test_dasbs_single.py`、`experiments/20261125_dasbs_smallgraph/` |
+| 2A 迁移单图 DASBS | 通过 | 11-25 09:55 | 11-25 10:25 | 迁移后 16 项测试通过；15 个阶段后总变差 path6 0.092 ± 0.021、cycle8 0.135 ± 0.023（标准 0.09 / 0.14 ± 0.05），path6 三个种子与 11-15 完全相同；修正项改在 t = 0 回归：0.085 / 0.161，差别在种子间波动之内 | `experiments/20261125_dasbs_smallgraph/README.md` |
 | 2B 跨图共享，小图验证 | 未开始 | | | | |
 | 2C RB-small 训练 | 未开始 | | | | |
 | R 总报告 | 未开始 | | | | |
@@ -33,7 +33,6 @@
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 14:00 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
 | 验证集前 64 张图的 KaMIS 多解（1C 的起点依赖分析用） | 1708059 | 无（CPU 16 进程） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/val64_kamis.log` | 11-25 11:00 |
-| 2A 复现：12 个 CPU 单线程任务 | 2394259–2394270 | 无 | `runs/experiments/20261125_dasbs_smallgraph/<变体>_<图>_s<种子>.log` | 11-25 10:40 |
 
 ## 待用户确认
 
@@ -60,3 +59,5 @@
 - 11-25 10:08：M2 通过。两个子 agent 的结论写入 math_route2.md §15。对后续阶段的影响（执行时照办）：
   - 2B：GNN 的区分能力受 1-WL 限制，小图族里放 WL 不可区分的图对作诊断；修正项输出可限制在 [tanh(Γ01/2), coth(Γ01/2)]；测量 corr-DM 比值场的回路不一致。
   - 2C：标签在对数空间算、float64、不截断；报告原始终点可行比例与解码前后结果；阶段数和起点分布要当作待验证的量（DASBS 低温下不用均匀 μ）；模型参数 EMA 与样本缓冲区参照 DASBS 附录 C。
+- 11-25 10:10–10:25：2A 复现完成，通过。
+- 11-25 10:15–10:35：2B 代码完成并提交：`cam/solvers/dasbs.py`（`--method DASBS`，UPSTREAM.md 第 71 条）、小图族生成 `cam/scripts/sb/gen_small_graphs.py`（数据在 `/usr0/home/shengyuf/yunyi/data/sb_small/`：训练 2000、验证 64、留出测试 64，n = 8–12；另有 6 对 1-WL 不可区分的图）、精确评测 `cam/scripts/sb/dasbs_exact_eval.py`（逐步传播采样器的精确分布，不抽样）。测试 `cam/tests/test_dasbs_solver.py` 5 项通过，含 2B 标准 1（memoryless + 修正项恒为 1 时与 M2 的特例一致）。
