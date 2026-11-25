@@ -9,7 +9,7 @@
 | 阶段 | 状态 | 开始（UTC） | 结束（UTC） | 结论 | 证据位置 |
 |---|---|---|---|---|---|
 | M1 路线 1 推导与验证 | 通过 | 11-25 | 11-25 09:15 | 推导全部成立；20 项测试通过（误差 < 1e-8，p = 0.5 与现有软目标 < 1e-6，反向对照误差 0.008–0.16）；两个子 agent 复核，对抗复核的 1 个错误（采样器 B 配乘积型网络时偏差不随步数消失）已改正 | `docs/20261125/math_route1.md`（§9 验证表、§10 复核）、`cam/tests/test_sb_coupling.py`、`runs/scratch/m1_independent/`、`runs/scratch/m1_review/` |
-| M2 路线 2 推导与验证 | 进行中 | 11-25 | | 推导与数值验证完成（`math_route2.md` 草稿，23 项测试通过）；等两个子 agent 复核 | `docs/20261125/math_route2.md`、`cam/tests/test_dasbs_exact.py`、`docs/20261125/m2_experiments.txt` |
+| M2 路线 2 推导与验证 | 通过 | 11-25 | 11-25 10:08 | 推导全部成立；`test_dasbs_exact.py` 33 项 + `test_sb_cross.py` 2 项 + 2A 的 16 项全部通过（逐项相对误差 1e-10）；反向对照扩到 3 张图 × 2 种噪声表均偏离；独立推导逐项吻合；对抗复核的 3 个文字错误（§12 符号、§12 描述、§9 数字）已改，17 个缺口已补测试或写明 | `docs/20261125/math_route2.md`（§13 验证表、§15 复核）、`cam/tests/test_dasbs_exact.py`、`docs/20261125/m2_experiments.txt`、`runs/scratch/m2_independent/`、`runs/scratch/m2_review/` |
 | M3 交叉验证 | 通过 | 11-25 09:40 | 11-25 09:42 | 路线 2 精确解（ν = 标签上的 π1）与路线 1 的 Sinkhorn 解一致：配对、6 个时刻的边缘、标签后验误差均 ≤ 1.1e-12（< 1e-8），12 个实例 × 2 种噪声表 | `cam/tests/test_sb_cross.py`；`math_route2.md` §11 |
 | 1A 配对分析 | 通过 | 11-25 09:14 | 11-25 09:45 | K = 2^22 时标签边缘最大相对误差 ≤ 1.10%（< 2%）；4000 张图预计算最多 18.3 分钟；给 1C 的 ω = 0.35、0.5、1.0（有效标签数中位数 18.3、11.7、4.1）；阴性出口未触发 | `experiments/20261125_sbdifusco_rbsmall_coupling/README.md` |
 | 1B 实现与回归测试 | 进行中 | 11-25 09:20 | | 标准 1（单元测试 + 原有 10 个测试文件全部通过）、2（ω = 0 时 200 步损失与现有软目标逐步相同，差 0）、3（两种采样器代码路径终点等于 π1，卡方检验通过）已满足；标准 4 的回归训练进行中 | `experiments/20261125_sbdifusco_rbsmall/README.md`、`cam/scripts/sb/check_difusco_sb_sampler.py` |
@@ -17,7 +17,7 @@
 | 1D 学出来的配对 | 未开始 | | | | |
 | 1E 标签变体 | 未开始 | | | | |
 | 1F 加固 | 未开始 | | | | |
-| 2A 迁移单图 DASBS | 进行中 | 11-25 09:55 | | 代码迁移完成并提交：`cam/utils/dasbs.py`、`cam/scripts/sb/dasbs_single.py`；16 项测试通过；小配置上与原工作树逐位相同（训练日志与指标完全一致）。复现训练等 M2 通过后启动 | `cam/tests/test_dasbs_single.py`、`experiments/20261125_dasbs_smallgraph/` |
+| 2A 迁移单图 DASBS | 进行中 | 11-25 09:55 | | 代码迁移完成并提交（`cam/utils/dasbs.py`、`cam/scripts/sb/dasbs_single.py`），16 项测试通过，小配置上与原工作树逐位相同。M2 通过后 10:10 启动复现：path6、cycle8 × 3 个种子 × 2 种修正项时间（原做法 t ~ U[0, 0.99]；M2 建议的 t = 0），15 个阶段 | `cam/tests/test_dasbs_single.py`、`experiments/20261125_dasbs_smallgraph/` |
 | 2B 跨图共享，小图验证 | 未开始 | | | | |
 | 2C RB-small 训练 | 未开始 | | | | |
 | R 总报告 | 未开始 | | | | |
@@ -33,7 +33,7 @@
 | 1C ω = 0.5 种子 0（sb_w0.5_soft_s0） | 1694537 | 1 | 同目录 `..._sb_w0.5_soft_s0/train.log` | 11-25 14:00 |
 | 1C ω = 1.0 种子 0（sb_w1.0_soft_s0） | 1705400 | 2 | 同目录 `..._sb_w1.0_soft_s0/train.log` | 11-25 14:10 |
 | 验证集前 64 张图的 KaMIS 多解（1C 的起点依赖分析用） | 1708059 | 无（CPU 16 进程） | `/usr0/home/shengyuf/yunyi/data/rb_small_sb/val64_kamis.log` | 11-25 11:00 |
-| M2 子 agent：独立推导、对抗复核 | （会话内） | 无 | `runs/scratch/m2_independent/`、`runs/scratch/m2_review/` | 11-25 10:30 |
+| 2A 复现：12 个 CPU 单线程任务 | 2394259–2394270 | 无 | `runs/experiments/20261125_dasbs_smallgraph/<变体>_<图>_s<种子>.log` | 11-25 10:40 |
 
 ## 待用户确认
 
@@ -57,3 +57,6 @@
 - 11-25 09:48：math_route2.md 草稿完成；M2 的两个子 agent 复核进行中。
 - 11-25 09:52：提交起点依赖诊断（`CAM_SB_PAIR_TRACE`：相邻两条链共享起点 z，记录起点与最终解；分析脚本 `cam/scripts/sb/start_dependence.py`）。CPU 小测试通过。
 - 11-25 09:55–10:05：2A 代码迁移。在原工作树的 Python 环境下用同一小配置（path6，2 阶段）分别运行原代码和迁移后的代码，训练日志和评测指标逐位相同。修正（按 M2 结论）以选项形式加入、默认关闭：修正项回归改在 t = 0（math_route2.md §5：t 接近 1 时比值方差大）；采样时间网格在 t = 1 附近加密（§10）。复现时两种修正项时间都跑。
+- 11-25 10:08：M2 通过。两个子 agent 的结论写入 math_route2.md §15。对后续阶段的影响（执行时照办）：
+  - 2B：GNN 的区分能力受 1-WL 限制，小图族里放 WL 不可区分的图对作诊断；修正项输出可限制在 [tanh(Γ01/2), coth(Γ01/2)]；测量 corr-DM 比值场的回路不一致。
+  - 2C：标签在对数空间算、float64、不截断；报告原始终点可行比例与解码前后结果；阶段数和起点分布要当作待验证的量（DASBS 低温下不用均匀 μ）；模型参数 EMA 与样本缓冲区参照 DASBS 附录 C。
