@@ -76,6 +76,14 @@ def main():
     parser.add_argument('--sb_coupling', action='store_true', help='DIFUSCO: SB coupling between Bernoulli(0.5)^n and the label set')
     parser.add_argument('--sb_omega', type=float, default=0.0, help='SB cost strength omega = log((1+a_T)/(1-a_T)); 0 = independent')
     parser.add_argument('--sb_logg', type=str, default=None, help='scripts/sb/precompute_logg.py output for --sb_omega (training)')
+    # local addition (UPSTREAM.md item 71): cross-graph DASBS (--method DASBS)
+    parser.add_argument('--dasbs_schedule', type=str, default='log_linear', choices=['constant', 'log_linear'])
+    parser.add_argument('--dasbs_gamma', type=float, default=1.0, help='reference flip rate gamma_t / 2 per bit')
+    parser.add_argument('--dasbs_alpha', type=float, default=0.5, help='log-linear gamma_t = gamma / (t + alpha); 0 = memoryless')
+    parser.add_argument('--dasbs_stage', type=str, default='20,10', help='C,R: controller then corrector training iterations per stage; R = 0: no corrector')
+    parser.add_argument('--dasbs_replicas', type=int, default=4, help='bridge points x_t per (x0, x1) pair')
+    parser.add_argument('--dasbs_corrector_time', type=str, default='zero', choices=['zero', 'uniform'])
+    parser.add_argument('--dasbs_grid', type=str, default='quadratic', choices=['uniform', 'quadratic'])
     parser.add_argument('--label_temp', type=float, default=1.0, help="temperature of --label_choice tilted (in set-size units)")
     # local addition (UPSTREAM.md item 45): per-graph weights of the DIFUSCO loss
     parser.add_argument('--graph_weight', type=str, default='none', choices=['none', 'nsets', 'ce'])
@@ -157,6 +165,9 @@ def main():
         solver = DIFUSCO(args)
     elif args.method == 'SDDS':
         solver = SDDS(args)
+    elif args.method == 'DASBS':
+        from solvers.dasbs import DASBS   # local addition (UPSTREAM.md item 71)
+        solver = DASBS(args)
     else:
         raise NotImplementedError
         

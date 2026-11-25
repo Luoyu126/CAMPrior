@@ -346,6 +346,16 @@ shows only the items below).
     compute exactly what the worktree computes (bit-identical runs); additions: `corrector_loss(time='zero')` and
     `sample_paths(grid='quadratic')`. `scripts/sb/dasbs_single.py` is the worktree's single-graph trainer with its
     RopeSiT network; tests: `tests/test_dasbs_single.py`.
+71. `solvers/dasbs.py` + `main.py` (`--method DASBS`, `--dasbs_*` flags): cross-graph DASBS for node problems
+    (route 2, stages 2B / 2C of `docs/20261125/plan.md`). Controller = `--model` (needs a time input, e.g.
+    `EncodeProcessDecodeTime2`), corrector = `EncodeProcessDecode` without time, output limited to the exact range
+    of the corrector; both in one module `DASBSNet` (one optimizer and checkpoint). Training iterations alternate
+    `--dasbs_stage C,R` controller-AM / corrector-DM iterations on (x0, x1) rollouts of the current controller
+    (tau-leaping, `--num_tp` steps, `--num_kp` chains per graph), target nu ∝ exp(-H / tau) with the env energy and
+    the ULSolver temperature schedule (`--tau0/--tau1`). Evaluation: `--num_t` tau-leaping steps, greedy decoding of
+    the last step's probabilities. `utils/dasbs.py` (item 70) now also accepts alpha = 0 (memoryless log-linear).
+    Tests: `tests/test_dasbs_solver.py`; small-graph family and exact evaluation: `scripts/sb/gen_small_graphs.py`,
+    `scripts/sb/dasbs_exact_eval.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
