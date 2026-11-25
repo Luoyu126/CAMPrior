@@ -35,6 +35,13 @@ Options for low temperature (stage 2C; all off by default, so 2B is unchanged):
                            Off: such a batch raises, as in 2A / 2B. At low tau with random early rollouts on dense
                            graphs (RB-small: degree up to ~70, so -dH/tau up to ~800 at tau = 0.1) this is needed;
                            the skip fraction is reported because skipped batches bias the fit.
+  --dasbs_rescale_overflow  instead of skipping: such a batch's per-element gradients (Phi - ratio) / weight are
+                           computed in log space and divided by one common positive constant, so that they are
+                           representable; with gradient-norm clipping (--grad_clip) the optimizer step is then exactly
+                           the exact-arithmetic one (rescaled_loss). Counted as train/skipped ("rescaled" in the
+                           epoch line). Reason (2C round 1): skipping removes exactly the batches with the large
+                           ratios that carry the signal at low tau (E[ratio | x_t] is dominated by rare endpoints one
+                           flip from a low-energy state); by epoch 60 of round 0 nearly every batch was skipped.
   --dasbs_ema d            exponential moving average of the parameters (DASBS App. C); evaluation and best.pt use
                            the average, rollouts use the current parameters; <file>_raw.pt keeps the raw weights.
 """
@@ -99,6 +106,34 @@ def normalized_bregman(log_prediction, log_target):
 
 
 GRAD_LIMIT = 1e30          # per-element gradient magnitude of the loss that the float32 backward still represents
+RESCALE_TO = 1e20          # --dasbs_rescale_overflow: the largest per-element gradient after the common rescaling
+
+
+def log_abs_grad(log_prediction, log_target, normalized):
+    """sign and log|g| of the per-element loss gradient w.r.t. log Phi, g = (Phi - ratio) / weight (weight
+    max(1, Phi) if normalized, else 1), computed in log space so that ratios beyond float64 (log > 709) are fine."""
+    p = log_prediction.detach().double(); t = log_target.detach().double()
+    hi, lo = torch.maximum(p, t), torch.minimum(p, t)
+    log_abs = hi + torch.log1p(-torch.exp(lo - hi))          # log|e^p - e^t|; -inf where equal
+    if normalized:
+        log_abs = log_abs - p.clamp(min=0)
+    return torch.sign(p - t), log_abs
+
+
+def rescaled_loss(log_prediction, log_target, normalized, loss):
+    """--dasbs_rescale_overflow. If every per-element gradient is representable (|g| <= GRAD_LIMIT), the plain loss.
+    Otherwise a surrogate with value 0 whose gradient w.r.t. log Phi is c * g / numel for ONE positive constant c
+    (the largest |g| becomes RESCALE_TO). Training clips the gradient norm (--grad_clip; 2C uses 1), and such a batch's
+    true gradient norm is astronomically above it, so the optimizer receives grad / |grad| in both cases: the update
+    is the one the exact-arithmetic algorithm makes. Nothing is dropped or clipped per element (math_route2.md §6;
+    clipping the target is a bias, measured with scripts/sb/dasbs_clip_effect.py). Returns (loss, rescaled?)."""
+    sign, log_abs = log_abs_grad(log_prediction, log_target, normalized)
+    m = float(log_abs.max())
+    if m <= math.log(GRAD_LIMIT):
+        return loss(log_prediction, log_target), False
+    g = sign * torch.exp(log_abs + (math.log(RESCALE_TO) - m))
+    p = log_prediction.double()
+    return (g * (p - p.detach())).sum() / p.numel(), True
 
 
 def check_representable(log_prediction, log_target, normalized):
@@ -198,6 +233,8 @@ class DASBS(ULSolver):
         self.loss_norm = getattr(args, 'dasbs_loss_norm', 'none') == 'pred'
         self.ema_decay = float(getattr(args, 'dasbs_ema', 0.0) or 0.0)
         self.skip_overflow = bool(getattr(args, 'dasbs_skip_overflow', False))
+        self.rescale_overflow = bool(getattr(args, 'dasbs_rescale_overflow', False))
+        assert not (self.skip_overflow and self.rescale_overflow), 'choose one overflow treatment'
         self.skipped = 0
         self.ctrl_batches = 0
         self.model = DASBSNet(self.model, corrector, corrector_log_bound(self.reference), self.ctrl_scale)
@@ -217,7 +254,8 @@ class DASBS(ULSolver):
         if 'train/loss' in logger:          # per-epoch training record: cumulative overflow skips (--dasbs_skip_overflow)
             logger = dict(logger, **{'train/skipped': self.skipped, 'train/ctrl_batches': self.ctrl_batches,
                                      'train/tau': float(self.tau)})
-            self.accelerator.print(f"epoch {logger.get('Epoch')}: tau {float(self.tau):.4g}, skipped "
+            self.accelerator.print(f"epoch {logger.get('Epoch')}: tau {float(self.tau):.4g}, "
+                                   f"{'rescaled' if self.rescale_overflow else 'skipped'} "
                                    f"{self.skipped}/{self.ctrl_batches} controller batches")
         return super().log(logger)
 
@@ -273,6 +311,10 @@ class DASBS(ULSolver):
             loss = normalized_bregman if self.loss_norm else D.ratio_bregman
             pred = self.model(graph, xt, t.to(x0.dtype))
             self.ctrl_batches += 1
+            if self.rescale_overflow:
+                value, rescaled = rescaled_loss(pred, target, self.loss_norm, loss)
+                self.skipped += int(rescaled)          # counted as "rescaled" (logged under the same key)
+                return value
             if self.skip_overflow:
                 try:
                     check_representable(pred, target, self.loss_norm)

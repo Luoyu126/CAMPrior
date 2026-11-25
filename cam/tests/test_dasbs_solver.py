@@ -28,7 +28,8 @@ from torch_geometric.data import Data  # noqa: E402
 
 from envs.mis import Env  # noqa: E402
 from solvers.dasbs import (DASBSNet, controller_target, corrector_log_bound, corrector_pairs,  # noqa: E402
-                           ema_update, flip_delta, normalized_bregman, tau_leap)
+                           ema_update, flip_delta, normalized_bregman, rescaled_loss, tau_leap)
+import solvers.dasbs as dasbs_mod  # noqa: E402
 from utils import dasbs as D  # noqa: E402
 from utils import dasbs_exact as de  # noqa: E402
 
@@ -230,6 +231,51 @@ def test_ctrl_scale_and_normalized_loss():
             scale = max(abs(grads[0]), abs(grads[2]))
             assert grads[0] < 0 < grads[2] and abs(grads[1]) < 1e-9 * scale, (fn.__name__, tau, grads)
         assert abs(float(logr.mean()) - float(want)) > 0.5                 # the log-regression minimiser is off
+
+
+def test_rescaled_overflow_update_is_exact():
+    """--dasbs_rescale_overflow (2C round 1). (a) Without overflow it is the plain loss. (b) With overflow (forced by a
+    low GRAD_LIMIT on targets the float64 reference still represents) the gradient after norm clipping to 1 equals
+    the clipped gradient of the plain loss, for both losses. (c) Ratios beyond float64 (log 1500): finite gradient,
+    every element pushed towards its target, and the plain path would raise."""
+    g = torch.Generator().manual_seed(1)
+    feats = torch.randn(300, 5, generator=g, dtype=torch.float64)
+
+    def clipped_grad(fn, logt, limit=None):
+        w = torch.nn.Parameter(torch.zeros(5, dtype=torch.float64))
+        old = dasbs_mod.GRAD_LIMIT
+        if limit is not None:
+            dasbs_mod.GRAD_LIMIT = limit
+        try:
+            value, flag = fn(feats @ w + 0.3, logt)
+        finally:
+            dasbs_mod.GRAD_LIMIT = old
+        value.backward()
+        torch.nn.utils.clip_grad_norm_([w], max_norm=1.0)
+        return w.grad.clone(), flag
+    for normalized, loss in ((True, normalized_bregman), (False, D.ratio_bregman)):
+        logt = torch.randn(300, generator=g, dtype=torch.float64) * 3 + 2
+        plain = lambda p, t: (loss(p, t), False)
+        resc = lambda p, t: rescaled_loss(p, t, normalized, loss)
+        g0, _ = clipped_grad(plain, logt)
+        g1, f1 = clipped_grad(resc, logt)
+        assert not f1 and torch.allclose(g0, g1, atol=0, rtol=1e-12)
+        g2, f2 = clipped_grad(resc, logt, limit=1e-3)
+        # clip_grad_norm_ divides by (norm + 1e-6): with pre-clip norms ~1e2 vs ~1e18 that alone differs by ~1e-8
+        assert f2 and torch.allclose(g0, g2, atol=0, rtol=1e-6), (g0, g2)
+        assert float(g0.norm()) > 0.999                                  # the clip was active
+    logt = torch.full((300,), 1500.0, dtype=torch.float64)
+    logt[::3] = -1500.0
+    p = torch.zeros(300, dtype=torch.float64, requires_grad=True)
+    value, flag = rescaled_loss(p, logt, True, normalized_bregman)
+    value.backward()
+    assert flag and float(value) == 0.0 and torch.isfinite(p.grad).all()
+    assert ((p.grad < 0) == (logt > 0)).all()                            # gradient descent moves log Phi to the target
+    try:
+        normalized_bregman(p, logt)
+        raise AssertionError('plain loss should overflow')
+    except FloatingPointError:
+        pass
 
 
 def test_ema_update():

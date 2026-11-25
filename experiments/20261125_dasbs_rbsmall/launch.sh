@@ -16,8 +16,13 @@
 #     replicas of a 40-graph batch ran out of the 10.5 GB GPU memory. Only the variance of the loss changes.
 #     Every mini-batch is one optimizer step (cam/solvers/meta_solver.py train), so the mini-batch stays at 10 chains:
 #     one update per rollout, 100 per epoch.
-#   - controller output scaled by 1 / tau, loss terms divided by max(1, Phi), overflowing batches skipped and counted,
-#     parameter EMA 0.999 for evaluation (cam/solvers/dasbs.py docstring).
+#   - controller output scaled by 1 / tau, loss terms divided by max(1, Phi), parameter EMA 0.999 for evaluation
+#     (cam/solvers/dasbs.py docstring).
+#   - OVERFLOW (default rescale): controller batches whose per-element gradient is not representable in float32 are
+#     rescaled by one common constant (--dasbs_rescale_overflow; with --grad_clip 1 the step is the exact one).
+#     OVERFLOW=skip (--dasbs_skip_overflow) was round 0 (runs renamed *_round0): from epoch ~60 (tau ~0.8) nearly every
+#     batch was skipped and training stopped (docs/20261125/status.md, 2C round 1).
+#   - TAG: optional run-name suffix (diagnostic runs).
 # Modes:
 #   sb_a<A>   log-linear reference gamma 1, alpha A (signal at t = 1: A / (1 + A)), with corrector, stages of 200
 #             controller + 100 corrector iterations (the full SB)
@@ -27,19 +32,20 @@
 set -euo pipefail
 EXP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; EXP_NAME="$(basename "$EXP_DIR")"
 REPO="$(cd "$EXP_DIR/../.." && pwd)"
-GPU=$1; MODE=$2; SEED=${3:-0}
+GPU=$1; MODE=$2; SEED=${3:-0}; OVERFLOW=${OVERFLOW:-rescale}
 EPOCHS=${EPOCHS:-400}; NUM_TP=${NUM_TP:-10}; REPLICAS=${REPLICAS:-2}; N_ANNEAL=${N_ANNEAL:-300}; TAU0=${TAU0:-1.0}; TAU1=${TAU1:-0.05}
 case "$MODE" in
     sb_a*) A=${MODE#sb_a}; REF=(--dasbs_alpha "$A" --dasbs_stage 200,100) ;;
     ml) REF=(--dasbs_alpha 0 --dasbs_stage 300,0) ;;
     *) echo "unknown mode $MODE"; exit 1 ;;
 esac
+case "$OVERFLOW" in rescale|skip) ;; *) echo "OVERFLOW must be rescale or skip"; exit 1 ;; esac
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh
 export CAM_WANDB=1
 source "$REPO/cam/scripts/env.sh"
 export WANDB_DIR="$EXP_DIR" CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs CUDA_VISIBLE_DEVICES=$GPU
 cam_require_gpu
-RUN=${EXP_NAME}_${MODE}_s${SEED}; OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; mkdir -p "$OUT"
+RUN=${EXP_NAME}_${MODE}_s${SEED}${TAG:+_$TAG}; OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; mkdir -p "$OUT"
 D=/usr1/shengyuf/MIS
 cd "$REPO/cam"
 nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_process_port $((29650 + GPU)) main.py \
@@ -50,6 +56,6 @@ nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_pro
     --optimizer RAdam --lr 0.001 --grad_clip 1 --lr_scheduler cosine-decay --beta 1.2 \
     --epochs $EPOCHS --N_anneal $N_ANNEAL --tau0 $TAU0 --tau1 $TAU1 --patience 1000 --save_every_epoch \
     --dasbs_schedule log_linear --dasbs_gamma 1 "${REF[@]}" --dasbs_replicas $REPLICAS --dasbs_corrector_time zero \
-    --dasbs_grid quadratic --dasbs_ctrl_scale tau --dasbs_loss_norm pred --dasbs_skip_overflow --dasbs_ema 0.999 \
+    --dasbs_grid quadratic --dasbs_ctrl_scale tau --dasbs_loss_norm pred --dasbs_${OVERFLOW}_overflow --dasbs_ema 0.999 \
     --do_train --save_dir "$OUT" --wandb_name SLVUL --wandb_run_name "$RUN" > "$OUT/train.log" 2>&1 &
 echo "$RUN pid $! gpu $GPU"
