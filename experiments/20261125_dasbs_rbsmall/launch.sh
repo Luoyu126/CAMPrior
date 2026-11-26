@@ -28,6 +28,8 @@
 #     OVERFLOW=skip (--dasbs_skip_overflow) was round 0 (runs renamed *_round0): from epoch ~60 (tau ~0.8) nearly every
 #     batch was skipped and training stopped (docs/20261125/status.md, 2C round 1).
 #   - TAG: optional run-name suffix (diagnostic runs).
+#   - RESUME=<epoch>: continue an existing run from epoch_<epoch-1>_raw.pt (--start_epoch; temperature and learning-rate
+#     schedules resume, optimizer moments and the EMA restart from the raw weights); log train_resume<epoch>.log.
 # Modes:
 #   sb_a<A>   log-linear reference gamma 1, alpha A (signal at t = 1: A / (1 + A)), with corrector, stages of 200
 #             controller + 100 corrector iterations (the full SB)
@@ -51,6 +53,11 @@ source "$REPO/cam/scripts/env.sh"
 export WANDB_DIR="$EXP_DIR" CAM_GRAPH_CACHE=/usr0/home/shengyuf/yunyi/.cache/cam/graphs CUDA_VISIBLE_DEVICES=$GPU
 cam_require_gpu
 RUN=${EXP_NAME}_${MODE}_s${SEED}${TAG:+_$TAG}; OUT="$REPO/runs/experiments/$EXP_NAME/$RUN"; mkdir -p "$OUT"
+LOG="$OUT/train.log"; RES=()
+if [ -n "${RESUME:-}" ]; then
+    CK="$OUT/epoch_$(printf %04d $((RESUME - 1)))_raw.pt"; test -f "$CK" || { echo "no $CK"; exit 1; }
+    RES=(--checkpoint "$CK" --start_epoch "$RESUME"); LOG="$OUT/train_resume$RESUME.log"
+fi
 D=/usr1/shengyuf/MIS
 cd "$REPO/cam"
 nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_process_port $((29650 + GPU)) main.py \
@@ -62,5 +69,5 @@ nohup "$CAM_ACCELERATE" launch --mixed_precision=no --num_processes=1 --main_pro
     --epochs $EPOCHS --N_anneal $N_ANNEAL --temp_schedule $TEMP --tau0 $TAU0 --tau1 $TAU1 --patience 1000 --save_every_epoch \
     --dasbs_schedule log_linear --dasbs_gamma 1 "${REF[@]}" --dasbs_replicas $REPLICAS --dasbs_corrector_time zero \
     --dasbs_grid quadratic --dasbs_ctrl_scale tau --dasbs_loss_norm pred --dasbs_${OVERFLOW}_overflow --dasbs_ema 0.999 \
-    --do_train --save_dir "$OUT" --wandb_name SLVUL --wandb_run_name "$RUN" > "$OUT/train.log" 2>&1 &
+    "${RES[@]}" --do_train --save_dir "$OUT" --wandb_name SLVUL --wandb_run_name "$RUN" > "$LOG" 2>&1 &
 echo "$RUN pid $! gpu $GPU"
