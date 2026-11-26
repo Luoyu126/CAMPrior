@@ -5,7 +5,7 @@ the 11-19 baselines): best-of-20 mean MIS size for every <set>_<sampler>_t<steps
 pair-traced evaluations (<tag>_pairs.jsonl, seed 100), the single-sample mean size and the start-dependence metrics of
 cam/scripts/sb/start_dependence.py (val64 traces use the KaMIS multi-solutions of the first 64 validation graphs).
 
-    python experiments/20261125_sbdifusco_rbsmall/summarize.py [--set anchor]
+    python experiments/20261125_sbdifusco_rbsmall/summarize.py [--set anchor] [--runs OTHER_RUN_ROOT]
 """
 import argparse
 import glob
@@ -23,7 +23,7 @@ PAT = re.compile(r'^(anchor|test|val64)_(\w+?)_t(\d+)_seed(\d+)_result\.txt$')
 
 
 def short(run):
-    return run.replace('20261125_sbdifusco_rbsmall_', '')
+    return run.replace('20261125_sbdifusco_rbsmall_labelvar_', 'lv_').replace('20261125_sbdifusco_rbsmall_', '')
 
 
 def sizes(set_name):
@@ -62,7 +62,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--set', default='anchor')
     ap.add_argument('--python', default=sys.executable)
+    ap.add_argument('--runs', default=None, help='another run root, e.g. runs/experiments/20261125_sbdifusco_rbsmall_labelvar')
     args = ap.parse_args()
+    global RUNS
+    if args.runs:
+        RUNS = os.path.abspath(args.runs)
     rows = sizes(args.set)
     cols = sorted({k for r in rows.values() for k in r if k[2] < 100}, key=lambda k: (k[0] != 'renoise', -k[1], k[2]))
     print(f'## best-of-20 mean MIS size, {args.set}\n')
