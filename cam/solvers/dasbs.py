@@ -106,6 +106,7 @@ def normalized_bregman(log_prediction, log_target):
 
 
 GRAD_LIMIT = 1e30          # per-element gradient magnitude of the loss that the float32 backward still represents
+LOG_VALUE_LIMIT = 600.0     # above this (log space) the plain loss value may overflow float64 (exp at ~709)
 RESCALE_TO = 1e20          # --dasbs_rescale_overflow: the largest per-element gradient after the common rescaling
 
 
@@ -126,14 +127,20 @@ def rescaled_loss(log_prediction, log_target, normalized, loss):
     (the largest |g| becomes RESCALE_TO). Training clips the gradient norm (--grad_clip; 2C uses 1), and such a batch's
     true gradient norm is astronomically above it, so the optimizer receives grad / |grad| in both cases: the update
     is the one the exact-arithmetic algorithm makes. Nothing is dropped or clipped per element (math_route2.md §6;
-    clipping the target is a bias, measured with scripts/sb/dasbs_clip_effect.py). Returns (loss, rescaled?)."""
+    clipping the target is a bias, measured with scripts/sb/dasbs_clip_effect.py). Returns (loss, rescaled?).
+    If the gradients are representable but the loss VALUE is not (prediction and target both above ~709 in log
+    space: exp overflows in float64 although (Phi - ratio) / Phi is small), the same surrogate is used with c = 1,
+    i.e. the exact gradient (fixed 11-26 after a crash in 2C round 2; rescaled? is False then)."""
     sign, log_abs = log_abs_grad(log_prediction, log_target, normalized)
     m = float(log_abs.max())
-    if m <= math.log(GRAD_LIMIT):
+    big = max(float(log_prediction.detach().max()), float(log_target.detach().max())) > LOG_VALUE_LIMIT
+    if m <= math.log(GRAD_LIMIT) and not big:
         return loss(log_prediction, log_target), False
-    g = sign * torch.exp(log_abs + (math.log(RESCALE_TO) - m))
+    rescaled = m > math.log(GRAD_LIMIT)
+    shift = math.log(RESCALE_TO) - m if rescaled else 0.0          # only ever scale down
+    g = sign * torch.exp(log_abs + shift)
     p = log_prediction.double()
-    return (g * (p - p.detach())).sum() / p.numel(), True
+    return (g * (p - p.detach())).sum() / p.numel(), rescaled
 
 
 def check_representable(log_prediction, log_target, normalized):

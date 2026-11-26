@@ -276,6 +276,17 @@ def test_rescaled_overflow_update_is_exact():
         raise AssertionError('plain loss should overflow')
     except FloatingPointError:
         pass
+    # (d) prediction and target both beyond float64 but close (2C round 2 crash): exact gradient, not rescaled
+    logt = torch.full((300,), 800.0, dtype=torch.float64) + torch.linspace(-1, 1, 300, dtype=torch.float64)
+    p = torch.full((300,), 800.0, dtype=torch.float64, requires_grad=True)
+    value, flag = rescaled_loss(p, logt, True, normalized_bregman)
+    value.backward()
+    want = (1 - torch.exp(logt - 800.0)) / 300                     # (Phi - ratio) / Phi / numel
+    assert not flag and torch.allclose(p.grad, want, rtol=1e-10, atol=1e-15)
+    # (e) moderate values: the plain path, unchanged
+    p = torch.zeros(5, dtype=torch.float64, requires_grad=True)
+    v, f = rescaled_loss(p, torch.ones(5, dtype=torch.float64), True, normalized_bregman)
+    assert not f and float(v) == float(normalized_bregman(p, torch.ones(5, dtype=torch.float64)))
 
 
 def test_ema_update():
