@@ -8,16 +8,17 @@
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 source /usr0/home/shengyuf/yunyi/envs/cam_env.sh; source cam/scripts/env.sh
 R=runs/experiments/20261125_sbdifusco_rbsmall; N=20261125_sbdifusco_rbsmall
-SB="$R/${N}_sb_w0.35_soft_s[012]_e800"; BL="$R/${N}_sb_w0_soft_s[01]_e800"
+SB="${SB:-$R/${N}_sb_w0.35_soft_s[012]_e800}"; BL="${BL:-$R/${N}_sb_w0_soft_s[01]_e800}"   # overridable for a dry run
 stat() {   # <glob> <tag>: mean and sample std over seeds of "Avg. size"
-    for f in $1/$2_result.txt; do grep -h "Avg. size" "$f" | tail -1 | awk '{print $3}'; done |
+    for f in $1/$2_result.txt; do grep -h "Avg. size" "$f" 2>/dev/null | tail -1 | awk '{print $3}'; done |
         awk '{s+=$1; q+=$1*$1; n++} END{if(n){m=s/n; sd=(n>1)?sqrt((q-n*m*m)/(n-1)):0; printf "%.3f ± %.3f (n=%d)", m, sd, n} else printf "missing"}'
 }
 echo "| set | sampler | steps | SB ω = 0.35 (3 seeds) | baseline ω = 0 (2 seeds) | SB − baseline, paired [95% CI] |"
 echo "|---|---|---|---|---|---|"
 for SET in anchor test; do
   for S in renoise posterior; do
-    for T in 50 10; do
+    if [ $SET = anchor ]; then STEPS="50 20 10 5"; else STEPS="50 10"; fi
+    for T in $STEPS; do
       TAG=${SET}_${S}_t${T}_seed0
       P=$("$CAM_PYTHON" experiments/20261125_sbdifusco_rbsmall/paired.py "$BL" "$SB" $TAG --json 2>/dev/null |
           python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(f\"{r['diff']:+.3f} [{r['ci'][0]:+.3f}, {r['ci'][1]:+.3f}] {r['verdict']}\")" 2>/dev/null)
