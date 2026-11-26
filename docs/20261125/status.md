@@ -15,7 +15,7 @@
 | 1B 实现与回归测试 | 进行中 | 11-25 09:20 | | 标准 1（单元测试 + 原有 10 个测试文件全部通过）、2（ω = 0 时 200 步损失与现有软目标逐步相同，差 0）、3（两种采样器代码路径终点等于 π1，卡方检验通过）已满足；标准 4 的回归训练进行中 | `experiments/20261125_sbdifusco_rbsmall/README.md`、`cam/scripts/sb/check_difusco_sb_sampler.py` |
 | 1C 只用多解，扫 ω | 通过 | 11-25 09:35 | 11-26 01:40 | 流程验收通过（所有 run 正常结束，指标齐全，README 写完）。科学结论**中性**：选定 ω = 0.35 对配置一致的 ω = 0 基线 50 步 +0.008 [−0.021, +0.037]、10 步 +0.013 [−0.029, +0.053]；对原（多卡）基线 +0.047 [+0.014, +0.080] 为阳性，但 ω = 0 本身比原基线高 +0.039（训练配置）。5 步时 +0.054（区间不含 0）。起点依赖随 ω 增强（比值 0.97 / 0.945 / 0.87），MIS 不随之变好 | `experiments/20261125_sbdifusco_rbsmall/README.md`、`runs/experiments/20261125_sbdifusco_rbsmall/verdict_1c.txt`、`summary_0126.md` |
 | 1D 学出来的配对 | 进行中 | 11-25 10:35 | | 前置完成：CSBM 已下载，要点写入 math_route1.md §12；验收标准 1（表格 D-IMF 收敛到 Sinkhorn 配对，TV < 1e-3）已满足，6 个实例全部通过；训练部分要等 1C 选出 ω | `docs/20261125/math_route1.md` §12、`cam/utils/sb_imf.py`、`cam/tests/test_sb_imf.py` |
-| 1E 标签变体 | 进行中 | 11-25 10:28 | | 前置分析完成：选定扰动为"翻转 10% 的位后贪心修复成极大独立集"；加权 π1 的代码与测试已提交；训练要等 1C 选出 ω | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/stats_*.txt`、`cam/scripts/sb/perturb_labels.py`、`cam/tests/test_sb_weights.py` |
+| 1E 标签变体 | 通过 | 11-25 10:28 | 11-26 03:40 | 7 组 × (SB ω = 0.35 + 独立配对对照) 全部指标齐全，三个问题已回答：(1) 扰动有害（多解 + 扰动比原多解低 0.22，两种配对一致）；(2) 加权在扰动标签上显著有用（+0.12 到 +0.27），但只补回扰动的损失，最好与原多解持平；(3) SB 收益依赖标签：标签质量参差时为正（单解 + 扰动 T = 1：+0.089；多解 + 扰动 10 步 +0.094），标签集中在好解时中性或为负（多解 + 扰动 T = 0.5：−0.071）。每组 1 个种子 | `experiments/20261125_sbdifusco_rbsmall_labelvar/README.md`、`runs/experiments/20261125_sbdifusco_rbsmall_labelvar/verdict_1e.txt`、`summary_0126.md` |
 | 1F 加固 | 未开始 | | | | |
 | 2A 迁移单图 DASBS | 通过 | 11-25 09:55 | 11-25 10:25 | 迁移后 16 项测试通过；15 个阶段后总变差 path6 0.092 ± 0.021、cycle8 0.135 ± 0.023（标准 0.09 / 0.14 ± 0.05），path6 三个种子与 11-15 完全相同；修正项改在 t = 0 回归：0.085 / 0.161，差别在种子间波动之内 | `experiments/20261125_dasbs_smallgraph/README.md` |
 | 2B 跨图共享，小图验证 | 通过 | 11-25 10:15 | 11-25 18:23 | 第 0 轮 sb 不过（测试总变差 0.211、能量差 23%）；诊断为训练振荡 + 控制器更新次数少；第 1 轮修复（EMA 0.999 + 控制器更新次数对齐）后 sb 测试总变差 0.175（≤ 0.20 且 ≤ 起点距离 0.700 的一半）、能量差 4.7%，标准 1–3 全部满足。科学上：sb 仍不如 ml（0.134）、nocorr（0.115），学到的修正项比恒为 1 还差 | `experiments/20261125_dasbs_crossgraph/README.md` |
@@ -30,12 +30,12 @@
 |---|---|---|---|---|
 | 2C 第 2 轮 sb（α = 0.5）种子 0，400 epoch，τ 20 → 0.05 几何 | 32068 | 1 | `runs/experiments/20261125_dasbs_rbsmall/20261125_dasbs_rbsmall_sb_a0.5_s0/train.log` | 11-26 10:00 |
 | 2C 第 2 轮 ml 种子 0，同上 | 32043 | 0 | 同目录 `..._ml_s0/train.log` | 11-26 10:00 |
-| 2C 第 2 轮快速诊断 sb（α = 0.5）：同上 | 32124 | 4 | 同目录 `..._sb_a0.5_s0_fast/train.log` | 11-26 02:45 |
 | 2C 截断偏差的精确测量（CPU，24 线程，8 张小图） | 后台 | 无 | `runs/experiments/20261125_dasbs_rbsmall/clip_effect/test8.jsonl` | 11-26 01:00 左右 |
 | 1B 诊断：单卡独立配对软目标种子 0 | 3817983 | 4 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_soft_s0/train.log` | 11-26 05:45（与 2C 共用 GPU 4，每 epoch 约 110 秒） |
 | 1B 诊断 / 1C 配套基线：单卡 ω = 0 种子 1 | 3818040 | 3 | 同目录 `..._sb_w0_soft_s1/train.log` | 11-26 01:00 |
-| 1E SB（ω = 0.35）× 7：单解 + 扰动 等权 / T = 1 / T = 0.5，多解 + 扰动 等权 / T = 1 / T = 0.5，k128 | 3899848、3899873、3899899、3899925、3899951、3899977、3900014 | 5、5、6、6、7、7、3 | `runs/experiments/20261125_sbdifusco_rbsmall_labelvar/..._w0.35*_s0/train.log` | 11-26 02:00–02:45 |
-| 自动评测：1E 的 7 个 SB run，训练结束后在原 GPU 上评测 | 3997509 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_lv_sb.log` | 11-26 03:30 |
+| 1D 前向网络的锚点评测：第 3 次迭代全套协议（GPU 3），第 0–2 次迭代 50/10 步（GPU 5、6、7） | 队列 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/imf_eval.log` | 11-26 05:30 |
+| 2C 第 2 轮全长 run 的探针（每 5 epoch，原始与 EMA 权重） | 后台 | 2 | `runs/experiments/20261125_dasbs_rbsmall/probe_watch.log` | 随训练结束 |
+| 2C sb 全长 run 的自动续跑（若遇到已修复的溢出崩溃） | 后台 | 1 | `runs/experiments/20261125_dasbs_rbsmall/resume_watch.log` | 随训练结束 |
 | 1D 迭代马尔可夫拟合（ω = 0.35，前向 GPU 3、后向 GPU 5；E0 = 100、E = 50、L = 3、J = 16） | 3907227 | 3、5 | `runs/experiments/20261125_sbdifusco_rbsmall_imf/20261125_sbdifusco_rbsmall_imf_w0.35_s0/imf.log` | 11-26 06:00 左右 |
 | 自动评测：1E 剩余 3 个对照、单卡 ω = 0 种子 1、单卡基线，训练结束后评测 | 3906666 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_rest.log` | 11-26 00:00 |
 
@@ -191,4 +191,8 @@
 - 11-26 00:57：1C 配套基线单卡 ω = 0 种子 1 训练完成，自动评测开始（GPU 3，`after_rest.log`）。1D 第 2 次迭代完成（前向 val64 最好 20.281），第 3 次迭代开始。
 - 11-26 01:00–01:15：**2C 第 2 轮中间诊断**（细节和表格在 `experiments/20261125_dasbs_rbsmall/README.md`）。快速诊断 ml 在 τ 从 20 降到 2 的过程中采样器一路变好（epoch 31 的 EMA 权重：终点约 20 个点、10 条冲突边），但原始权重在 epoch 30（τ ≈ 2.1）突然失去对输入的依赖，epoch 31 输出对所有点恒为 22.3 的 log Φ，采样器回到随机且回不来；EMA 两三个 epoch 后跟着退化。参数范数没有变大。停掉快速诊断 ml（GPU 2 空出）。全长 run 约 epoch 115 到 τ = 2，届时判断。第 2 轮是最后一轮，不再改配置。
 - 11-26 01:34–01:45：**1C 判定**（单卡 ω = 0 种子 1 评测完成）。主结论按配置一致的 ω = 0 基线：中性（细节见 README）。没有触发阴性分支，1D、1E 照常。对原基线是阳性，两者不一致的原因是训练配置，已在"待用户确认"里。1B 标准 4 还等单卡原代码路径（indep_soft_s0，GPU 4，约 05:45）评测。
+- 11-26 02:28–03:40：1D 三次迭代全部完成；1E 全部评测完成（02:50）；1B 的单卡原代码路径训练完成（03:10），评测在 `after_rest.log`。
+  - **1E 判定：通过**，三个问题的答案见阶段表和 README。
+  - **2C 第 2 轮全长 run**：ml 在 epoch 100（τ ≈ 2.7）退化，到 epoch 125 没有恢复；sb（α = 0.5）在 epoch 90–95 一度部分退化（翻转概率约 0.86，没有到 1），epoch 100 以后恢复，epoch 120（τ = 1.82）EMA 权重终点约 34 个点、33 条冲突边。快速诊断 sb 在 epoch 40 前退化，并在 epoch 70 因损失值溢出崩溃（梯度可表示、但预测和目标都超过 e^709，`rescaled_loss` 的漏洞）。已修复（52301fe，测试 8 项通过），正在跑的全长 run 用的是旧代码，所以挂了自动续跑：若 sb 全长 run 因同一错误停止，从最后一个原始权重 checkpoint 续跑（`launch.sh` 新增 `RESUME`；先把 best.pt 另存；最终按验证日志重选 checkpoint）。
+  - 1D：前向网络训练所用的配对（后向网络生成起点）代价 113.7 → 109.9 → 109.8 → 109.8，比闭式配对（111.0）低 1.1%；前向网络自己的配对（真起点 → 采样解）代价 113.7 → 116.4 → 116.6 → 116.6，比闭式高 5.1%。锚点评测已排队（第 3 次迭代是预先指定的最终模型）。
 
