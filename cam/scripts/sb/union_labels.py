@@ -17,7 +17,7 @@ import glob
 import os
 import sys
 import time
-from multiprocessing import Pool
+from multiprocessing import get_context
 
 import numpy as np
 import torch
@@ -30,12 +30,12 @@ def job(args):
     idx, path, base, extra, polish, max_gap, max_extra, seed = args
     rng = np.random.default_rng(seed + idx)
     A = load_adj(path)
-    base = base.numpy().astype(bool)
+    base = base.astype(bool)
     best = int(base[0].sum())
     seen = {np.packbits(x).tobytes() for x in base}
     cand = {}
     n_bigger = 0
-    for x in extra.numpy().astype(bool):
+    for x in extra.astype(bool):
         if polish:
             st = State(A, x)
             st.local_search(rng)
@@ -48,8 +48,8 @@ def job(args):
         if k not in seen and k not in cand:
             cand[k] = x.copy()
     ext = sorted(cand.values(), key=lambda x: -int(x.sum()))[:max_extra]
-    X = torch.from_numpy(np.concatenate([base, np.stack(ext)]) if ext else base).to(torch.uint8)
-    e = np.argwhere(np.triu(A))
+    X = (np.concatenate([base, np.stack(ext)]) if ext else base).astype(np.uint8)   # numpy only in the workers:
+    e = np.argwhere(np.triu(A))                                                     # torch after fork can deadlock
     assert not (X[:, e[:, 0]] & X[:, e[:, 1]]).any(), f'{path}: not independent'
     return idx, X, n_bigger
 
@@ -81,14 +81,14 @@ def main():
         assert sorted(S) == list(range(N))
         for i in range(N):
             extra[i].append(S[i]['sets'])
-    extra = [torch.cat(e) if e else torch.zeros(0, B['sets'][i].shape[1], dtype=torch.uint8) for i, e in enumerate(extra)]
+    extra = [torch.cat(e).numpy() if e else np.zeros((0, B['sets'][i].shape[1]), dtype=np.uint8) for i, e in enumerate(extra)]
     t0 = time.time()
-    jobs = [(i, os.path.join(TRAIN, files[i]), B['sets'][i], extra[i], a.polish, a.max_gap, a.max_extra, a.seed)
+    jobs = [(i, os.path.join(TRAIN, files[i]), B['sets'][i].numpy(), extra[i], a.polish, a.max_gap, a.max_extra, a.seed)
             for i in range(N)]
     sets, bigger = [None] * N, 0
-    with Pool(a.procs) as pool:
+    with get_context('spawn').Pool(a.procs) as pool:
         for k, (i, X, nb) in enumerate(pool.imap_unordered(job, jobs, chunksize=4)):
-            sets[i] = X
+            sets[i] = torch.from_numpy(X)
             bigger += nb > 0
             if k % 500 == 0:
                 print(f'{k}/{N} rows {X.shape[0]} elapsed {time.time() - t0:.0f}s', flush=True)
