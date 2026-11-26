@@ -23,8 +23,8 @@
 | 1E 标签变体 | 通过 | 扰动有害（−0.22）；加权补回扰动的损失但不超过原多解；SB 的收益依赖标签：标签质量参差时为正（最多 +0.09），标签集中在好解时中性或为负 | `experiments/20261125_sbdifusco_rbsmall_labelvar/README.md` |
 | 1F 加固 | （待定） | | |
 | 2A 迁移单图 DASBS | 通过 | 复现 11-15 的单图结果：path6 总变差 0.092、cycle8 0.135 | `experiments/20261125_dasbs_smallgraph/README.md` |
-| 2B 跨图共享，小图验证 | （待定） | | `experiments/20261125_dasbs_crossgraph/README.md` |
-| 2C RB-small 训练 | （待定） | | |
+| 2B 跨图共享，小图验证 | 通过 | 第 1 轮修复（EMA + 控制器更新次数对齐）后 sb 测试总变差 0.175、能量差 4.7%；科学上 sb 不如 ml（0.134）、nocorr（0.115），学到的修正项比恒为 1 还差 | `experiments/20261125_dasbs_crossgraph/README.md` |
+| 2C RB-small 训练 | 失败 | 锚点最好 18.209（要求 ≥ 19.5）。在线 ctrl-AM 在 RB-small 上有吸收性的退化不动点（所有位翻转概率 1）；高温起步能把采样器带到接近可行，但在 τ ≈ 3 到 1.4 之间网络突然退化，不再恢复 | `experiments/20261125_dasbs_rbsmall/README.md` |
 
 ## 2. 最终表格
 
