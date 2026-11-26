@@ -24,16 +24,13 @@
 
 ## 正在跑的任务
 
-（11-26 03:50 更新。只剩 1F 的 5 个训练，GPU 3–7 各一个；GPU 0、1、2 空闲。）
+（11-26 03:55 更新。只剩 1F 的 5 个训练（GPU 3–7 各一个）和训练结束后的自动评测；GPU 0、1、2 空闲。按前 30 分钟的速度（每 epoch 约 40–47 秒）估计。）
 
 | 任务 | 进程号 | GPU | 日志 | 预计结束（UTC） |
 |---|---|---|---|---|
-| 1B 诊断：单卡独立配对软目标种子 0 | 3817983 | 4 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_indep_soft_s0/train.log` | 11-26 05:45（与 2C 共用 GPU 4，每 epoch 约 110 秒） |
-| 1B 诊断 / 1C 配套基线：单卡 ω = 0 种子 1 | 3818040 | 3 | 同目录 `..._sb_w0_soft_s1/train.log` | 11-26 01:00 |
-| 1F SB ω = 0.35 软目标 种子 0 / 1 / 2，800 epoch | 383142、383174、383219 | 4、3、5 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_sb_w0.35_soft_s{0,1,2}_e800/train.log` | 11-26 16:30–17:30 |
-| 1F 独立配对基线（ω = 0 软目标，单卡）种子 0 / 1，800 epoch | 383254、383297 | 6、7 | 同目录 `..._sb_w0_soft_s{0,1}_e800/train.log` | 11-26 16:30–17:30 |
-| 1D 迭代马尔可夫拟合（ω = 0.35，前向 GPU 3、后向 GPU 5；E0 = 100、E = 50、L = 3、J = 16） | 3907227 | 3、5 | `runs/experiments/20261125_sbdifusco_rbsmall_imf/20261125_sbdifusco_rbsmall_imf_w0.35_s0/imf.log` | 11-26 06:00 左右 |
-| 自动评测：1E 剩余 3 个对照、单卡 ω = 0 种子 1、单卡基线，训练结束后评测 | 3906666 | 3、5、6、7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_rest.log` | 11-26 00:00 |
+| 1F SB ω = 0.35 软目标 种子 0 / 1 / 2，800 epoch | 383142、383174、383219 | 4、3、5 | `runs/experiments/20261125_sbdifusco_rbsmall/20261125_sbdifusco_rbsmall_sb_w0.35_soft_s{0,1,2}_e800/train.log` | 11-26 12:30–14:30 |
+| 1F 独立配对基线（ω = 0 软目标，单卡）种子 0 / 1，800 epoch | 383254、383297 | 6、7 | 同目录 `..._sb_w0_soft_s{0,1}_e800/train.log` | 11-26 12:30–14:30 |
+| 1F 自动评测：每个训练结束后在同一 GPU 上跑锚点（50/20/10/5 步 × 两种采样器）、成对追踪、测试集（50/10 步 × 两种采样器） | 435621 | 3–7 | `runs/experiments/20261125_sbdifusco_rbsmall/queues/after_1f.log`（"all done" 表示结束） | 11-26 16:30 左右 |
 
 ## 待用户确认
 
