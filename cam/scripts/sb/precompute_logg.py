@@ -40,6 +40,7 @@ def main():
     ap.add_argument('--tol', type=float, default=1e-4)
     ap.add_argument('--num_tp', type=int, default=50)
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--chunk', type=int, default=1 << 18, help='starts per GPU chunk (memory only; the same fixed point up to Monte Carlo noise)')
     ap.add_argument('--weight_temp', type=float, default=None, help='pi1 ∝ exp(|s| / T); default uniform')
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
@@ -64,9 +65,9 @@ def main():
             continue
         labels = s.to(dev)
         gen = torch.Generator(dev).manual_seed(args.seed * 100003 + i)
-        D = sb.sample_distances(args.K, labels, gen)
+        D = sb.sample_distances(args.K, labels, gen, chunk=args.chunk)
         pi1 = target(s).to(dev)
-        lg, rel, it = sb.sinkhorn_distances(D, sb.omega(a_end), pi1, tol=args.tol)
+        lg, rel, it = sb.sinkhorn_distances(D, sb.omega(a_end), pi1, tol=args.tol, chunk=args.chunk)
         assert rel < args.tol, (i, rel)
         log_gs.append(lg.cpu()); rels.append(rel); iters.append(it)
         if i % 500 == 0:
