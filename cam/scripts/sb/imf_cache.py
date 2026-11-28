@@ -3,7 +3,8 @@ solvers/difusco.py --sb_pair_cache. A cache holds, per training graph, J pairs a
 (the end the network does NOT predict) and 'labels' (the end it predicts). Forward network: start = z, label = y.
 Backward network (--sb_reverse): start = y, label = z.
 
-  independent  z ~ Bernoulli(0.5)^n, y uniform from the label set (iteration 0 of the IMF): writes both caches.
+  independent  z ~ Bernoulli(0.5)^n, y ~ pi1 from the label set (uniform, or --temp T: pi1 ∝ exp(|s| / T); iteration 0
+               of the IMF): writes both caches.
   from_trace   a pair trace (solvers/difusco.py CAM_SB_PAIR_TRACE on the training graphs, CAM_SB_TRACE_NOSHARE=1):
                --direction fwd: trace of the forward network (start z ~ pi0, final = decoded solution y) -> cache
                for the BACKWARD network (true z); --direction bwd: trace of the backward network (start = label y ~
@@ -76,14 +77,17 @@ def main():
     ap.add_argument('--out_bwd', default=None)
     ap.add_argument('--logg', default=None)
     ap.add_argument('--mc', type=int, default=4096)
+    ap.add_argument('--temp', default=None, help='pi1 ∝ exp(|s| / T); default uniform')
     args = ap.parse_args()
     meta = vars(args).copy()
     if args.mode == 'independent':
         sets = torch.load(args.label_set, weights_only=False)['sets']
         g = torch.Generator().manual_seed(args.seed)
         Z, Y = [], []
+        temp = sb.parse_temp(args.temp)
         for S in sets:
-            Y.append(S[torch.randint(S.shape[0], (args.J,), generator=g)].to(torch.uint8))
+            p = sb.label_log_weights(S, temp).exp()
+            Y.append(S[torch.multinomial(p, args.J, replacement=True, generator=g)].to(torch.uint8))
             Z.append(torch.randint(0, 2, (args.J, S.shape[1]), generator=g).to(torch.uint8))
         cost = save(args.out_fwd, Z, Y, dict(meta, network='forward'))
         save(args.out_bwd, Y, Z, dict(meta, network='backward'))

@@ -80,6 +80,21 @@ def sinkhorn(labels, pi1, a_T, z, z_weights=None, iters=10000, tol=1e-12):
     return log_g, err, it
 
 
+def label_log_weights(labels, temp=None):
+    """log pi1 over the rows of a label set (M, n): uniform, or size-weighted pi1(m) ∝ exp(|s_m| / temp) (the
+    weighting of scripts/sb/precompute_logg.py --weight_temp). A set whose rows are already samples of the target
+    (with repeats, e.g. scripts/sb/mcmc_labels.py) takes temp None. float64 (M,)."""
+    M = labels.shape[0]
+    if temp is None:
+        return torch.full((M,), -math.log(M), dtype=torch.float64)
+    return torch.log_softmax(labels.double().sum(1) / float(temp), 0)
+
+
+def parse_temp(v):
+    """'none' / '' / None -> None, otherwise float (for CLI flags and environment variables)."""
+    return None if v in (None, '', 'none', 'None') else float(v)
+
+
 def coupling_conditional(z, labels, log_g, a_T):
     """pi*(m | z) as probabilities (K, M)."""
     return label_log_posterior(z, labels, log_g, a_T).exp()

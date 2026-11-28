@@ -446,14 +446,17 @@ class DIFUSCO(SLSolver):
         return sol * x0 if self.sampler == 'renoise_feasible' else sol
 
     def reverse_starts(self, graph, solution):
-        """Stage 1D, --sb_reverse at evaluation: every chain starts from a label of the graph drawn uniformly from
-        the label set CAM_SB_STARTS (dataset index = graph.idx), the true pi1."""
+        """Stage 1D, --sb_reverse at evaluation: every chain starts from a label of the graph drawn from the label set
+        CAM_SB_STARTS (dataset index = graph.idx) with the target weights pi1: uniform, or with CAM_SB_STARTS_TEMP = T
+        pi1(m) ∝ exp(|s_m| / T) (route 1', docs/20261128/plan_route1prime.md §6 item 1)."""
         if not hasattr(self, '_rev_sets'):
             d = torch.load(os.environ['CAM_SB_STARTS'], weights_only=False)
             self._rev_sets = d['sets']
+            self._rev_temp = sb_coupling.parse_temp(os.environ.get('CAM_SB_STARTS_TEMP'))
         S = self._rev_sets[int(torch.as_tensor(graph.idx).reshape(-1)[0])].to(solution.device)
         assert S.shape[1] == solution.shape[0], 'label set does not match the graph'
-        pick = torch.randint(S.shape[0], (solution.shape[1],), device=solution.device)
+        p = sb_coupling.label_log_weights(S, self._rev_temp).exp().to(solution.device)
+        pick = torch.multinomial(p, solution.shape[1], replacement=True)
         return S[pick].T.float().contiguous()
 
     def write_pair_trace(self, graph, start, final):
