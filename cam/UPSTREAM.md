@@ -379,7 +379,10 @@ shows only the items below).
     `scripts/sb/dsbm_metrics.py` (training-dynamics metrics from pair traces: the generator's end distribution
     against pi_B, the noising network's end statistics against Bernoulli(0.5)^n); `scripts/sb/mcmc_labels.py`
     (perturbed end distributions: Metropolis samples of pi_B ∝ exp(|s| / T) on independent sets within Hamming
-    radius r of the KaMIS solutions, stored as a label set). Tests: `tests/test_dsbm.py`.
+    radius r of the KaMIS solutions, stored as a label set); `scripts/sb/dsbm_loop.py` (the iteration driver:
+    DSBM cross-fed generator / noising networks or the frozen-coupling control, stopping rule, restartable state,
+    per-iteration anchor evaluation); `DIFUSCO` pair trace option `CAM_SB_TRACE_RAW=1` (record the generator's raw
+    sample instead of the decoded solution). Tests: `tests/test_dsbm.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.

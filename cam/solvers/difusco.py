@@ -510,9 +510,10 @@ class DIFUSCO(SLSolver):
     
             best_energy, final = self.problem.evaluate(graph, solution)
             if self.solution_type == 'node' and os.environ.get('CAM_SB_PAIR_TRACE'):
-                # the backward sampler ends on a start z, not a solution: record the raw sample, not the decoding
-                self.write_pair_trace(graph, start, torch.bernoulli(solution.clamp(0, 1)) if self.sb and self.sb_reverse
-                                      else final)
+                # the backward sampler ends on a start z, not a solution: record the raw sample, not the decoding;
+                # CAM_SB_TRACE_RAW=1 records the raw sample of the forward sampler too (route 1' D2, plan §2.3)
+                raw = self.sb and (self.sb_reverse or os.environ.get('CAM_SB_TRACE_RAW') == '1')
+                self.write_pair_trace(graph, start, torch.bernoulli(solution.clamp(0, 1)) if raw else final)
             if trace is not None:
                 self.trace_inputs(graph, trace, final.float())
             best_energies.append(best_energy)
