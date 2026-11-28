@@ -7,6 +7,10 @@
    these weights (chi-square). Negative control: the uniform draw is rejected against the weighted target.
 2. IPF initial cache (imf_cache.py ipf): y ~ pi1, z = y through the reference to the noise end, i.e. every bit kept with
    probability (1 + a_T) / 2, a_T = tanh(omega / 2); omega = 0 gives z independent of y.
+3. Training-dynamics metrics (scripts/sb/dsbm_metrics.py) on synthetic traces with known answers: exact draws from
+   pi_B give in_labels 1, d_near 0 and tv_near at the i.i.d. floor; a collapsed sampler is far above it; uniform
+   independent starts give the Bernoulli statistics and ber_gap at its floor, a copy of y gives agree 1. Node order:
+   the KaMIS labels of real training graphs have no conflicting edge under graph_edges.
 """
 import os
 import subprocess
@@ -14,6 +18,7 @@ import sys
 import time
 import traceback
 import types
+import json
 
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 CAM_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,6 +128,64 @@ def test_imf_cache_ipf():
             assert chisq_p(c, sb.label_log_weights(S, 1.0).exp().numpy()) > 1e-3
             keep = (Z == Y).double().mean().item()
             assert abs(keep - (1 + a_T) / 2) < 0.005, (omega, keep, (1 + a_T) / 2)
+
+
+def _hex(m):
+    return [format(int(''.join(map(str, r.tolist())), 2), 'x') for r in m]
+
+
+def test_dsbm_metrics_synthetic():
+    sys.path.insert(0, os.path.join(CAM_ROOT, 'scripts', 'sb'))
+    import dsbm_metrics as dm
+    sets = toy_sets(3, n_graphs=40)
+    rng = np.random.default_rng(0)
+    exact, collapsed = {}, {}
+    for i, S in enumerate(sets):
+        p = sb.label_log_weights(S, 1.0).exp().numpy()
+        Y = S.numpy()[rng.choice(len(p), 64, p=p)].astype(np.int8)
+        Z = rng.integers(0, 2, Y.shape).astype(np.int8)
+        exact[i] = (Z, Y)
+        collapsed[i] = (Z, np.repeat(S.numpy()[:1].astype(np.int8), 64, 0))
+    m = dm.fwd_metrics(exact, sets, 1.0)
+    assert m['in_labels'] == 1.0 and m['d_near'] == 0.0
+    assert abs(m['tv_near'] - m['tv_floor']) < 0.03, m
+    c = dm.fwd_metrics(collapsed, sets, 1.0)
+    assert c['tv_near'] > m['tv_floor'] + 0.2, (c, m)
+    # backward: z uniform and independent of the starting label y, or z = y
+    edges, uni, copy = {}, {}, {}
+    for i, S in enumerate(sets):
+        n = S.shape[1]
+        e = np.array([(a, b) for a in range(n) for b in range(a + 1, n) if rng.random() < 0.3]).T
+        edges[i] = (e[0], e[1])
+        Y = S.numpy()[rng.integers(0, len(S), 64)].astype(np.int8)
+        uni[i] = (Y, rng.integers(0, 2, Y.shape).astype(np.int8))
+        copy[i] = (Y, Y.copy())
+    b = dm.bwd_metrics(uni, edges)
+    assert abs(b['density'] - 0.5) < 0.01 and abs(b['conflict'] - 0.25) < 0.01 and abs(b['agree'] - 0.5) < 0.01, b
+    assert abs(b['ber_gap'] - b['bgap_floor']) < 0.01, b
+    assert dm.bwd_metrics(copy, edges)['agree'] == 1.0
+    # trace round trip through the hex format of solvers/difusco.py write_pair_trace
+    path = os.path.join(SCRATCH, 'trace.jsonl')
+    with open(path, 'w') as f:
+        for i, (Z, Y) in exact.items():
+            f.write(json.dumps({'idx': i, 'n': Z.shape[1], 'start': _hex(Z), 'final': _hex(Y)}) + '\n')
+    tr = dm.read_trace(path, 1000)
+    assert all(np.array_equal(tr[i][0], exact[i][0]) and np.array_equal(tr[i][1], exact[i][1]) for i in exact)
+
+
+def test_graph_edges_node_order():
+    sys.path.insert(0, os.path.join(CAM_ROOT, 'scripts', 'sb'))
+    import dsbm_metrics as dm
+    sets = torch.load('/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_kamis_loaderorder.pt',
+                      weights_only=False)['sets']
+    E = dm.graph_edges(dm.TRAIN, range(5))
+    for i in range(5):
+        S = sets[i].numpy()
+        e0, e1 = E[i]
+        assert len(e0) > 0 and int(max(e0.max(), e1.max())) < S.shape[1]
+        assert (S[:, e0] * S[:, e1]).sum() == 0, f'graph {i}: a KaMIS label has a conflicting edge'
+        Z = (np.random.default_rng(i).random(S.shape) < 0.5).astype(np.int8)   # a random state does conflict
+        assert (Z[:, e0] * Z[:, e1]).sum() > 0
 
 
 tests = [(n, f) for n, f in list(globals().items()) if n.startswith('test_') and callable(f)]

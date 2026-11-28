@@ -375,8 +375,9 @@ shows only the items below).
 72. Route 1' (DSBM, `docs/20261128/plan_route1prime.md`): `utils/sb_coupling.label_log_weights` (pi1 uniform or
     ∝ exp(|s| / T)); `DIFUSCO.reverse_starts` draws the backward network's starting labels with these weights
     (`CAM_SB_STARTS_TEMP`, default uniform as before); `scripts/sb/imf_cache.py independent --temp T`;
-    `imf_cache.py ipf --omega w` (DSBM-IPF initial pairs: y ~ pi1, z = y through the reference). Tests:
-    `tests/test_dsbm.py`.
+    `imf_cache.py ipf --omega w` (DSBM-IPF initial pairs: y ~ pi1, z = y through the reference);
+    `scripts/sb/dsbm_metrics.py` (training-dynamics metrics from pair traces: the generator's end distribution
+    against pi_B, the noising network's end statistics against Bernoulli(0.5)^n). Tests: `tests/test_dsbm.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
