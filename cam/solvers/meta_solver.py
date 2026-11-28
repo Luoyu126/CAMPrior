@@ -242,16 +242,31 @@ class SLSolver(NNSolver):
         return len(self.train_loader)*self.epochs
             
     def train(self, save_dir):
-        best_eval = np.inf
+        args = getattr(self, 'args', None)
+        # Local patch (see UPSTREAM.md): --best_eval_init carries the best validation objective of the
+        # interrupted run into a --start_epoch continuation, so best.pt is only replaced by a better epoch.
+        init = getattr(args, 'best_eval_init', None)
+        best_eval = np.inf if init is None else float(init)
         wait = 0
         self.accelerator.wait_for_everyone()
         # Local patch (see UPSTREAM.md): --save_every_epoch for supervised solvers too, so that the
         # SL and UL arms can be evaluated with the same per-epoch test-curve protocol.
-        save_every = getattr(getattr(self, 'args', None), 'save_every_epoch', False)
-        if save_every:
+        save_every = getattr(args, 'save_every_epoch', False)
+        start = int(getattr(args, 'start_epoch', 0) or 0)
+        if save_every and start == 0:
             self.save_ckpt(os.path.join(save_dir, 'epoch_init.pt'))
+        if start > 0:
+            # Local patch (see UPSTREAM.md): --start_epoch continues a run (as in ULSolver.train): advance
+            # the step-based learning-rate schedule by the optimizer steps of the skipped epochs.
+            skipped = len(self.train_loader)*start
+            for _ in range(skipped):
+                self.scheduler.step()
+            self.global_step = skipped
+            self.accelerator.print(f'start_epoch {start}: lr schedule advanced {skipped} steps, '
+                                   f'lr {self.scheduler.get_last_lr()[0]:.3g}, best_eval {best_eval}')
 
-        for epoch in range(self.epochs):
+        stop = getattr(args, 'stop_epoch', None)
+        for epoch in range(start, self.epochs if stop is None else min(int(stop), self.epochs)):
             self.model.train()
             losses = []
             for _, batch in tqdm(enumerate(self.train_loader), total=len(self.train_loader), disable=not self.accelerator.is_local_main_process):
@@ -321,7 +336,9 @@ class ULSolver(NNSolver):
         raise NotImplementedError
     
     def train(self, save_dir):
-        best_eval = np.inf
+        # Local patch (see UPSTREAM.md): --best_eval_init, as in SLSolver.train.
+        init = getattr(getattr(self, 'args', None), 'best_eval_init', None)
+        best_eval = np.inf if init is None else float(init)
         wait = 0
         self.accelerator.wait_for_everyone()
         # Local patch (see UPSTREAM.md): with --save_every_epoch also keep the untrained weights.

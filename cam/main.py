@@ -116,6 +116,9 @@ def main():
                         help="local addition (see UPSTREAM.md): continue a run from this epoch; with "
                              "--checkpoint epoch_<start_epoch-1>.pt the temperature and learning-rate "
                              "schedules resume where the run left them (optimizer moments start fresh)")
+    parser.add_argument("--best_eval_init", type=float, default=None,
+                        help="local addition (see UPSTREAM.md): best validation objective (eval/object) of the "
+                             "interrupted run, for --start_epoch continuations; best.pt is replaced only below it")
     parser.add_argument("--stop_epoch", type=int, default=None,
                         help="local addition (see UPSTREAM.md): stop after this many epochs while the "
                              "schedules still run over --epochs (for continuations)")

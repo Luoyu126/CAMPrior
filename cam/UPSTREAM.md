@@ -146,6 +146,9 @@ shows only the items below).
     `--checkpoint epoch_<E-1>.pt` (temperature schedule from epoch E, the step-based learning-rate
     schedule advanced by the skipped optimizer steps; optimizer moments start fresh) and
     `--stop_epoch S` stops after epoch S-1 while the schedules still run over `--epochs`.
+    `--best_eval_init v` starts the best-checkpoint tracking of a continuation at the interrupted run's
+    best `eval/object` (otherwise the first continued epoch would overwrite `best.pt`). All three flags
+    apply to the supervised solvers (`SLSolver.train`, e.g. DIFUSCO) as well as the unsupervised ones.
     `solvers/cam_prior.py`: `--label_mode simpol`, simulated labels under the current sampler
     (prior + network; with `--simpol_kl on` the cost-to-go adds tau * KL, i.e. the soft value of the
     current policy, docs/label_correction.md 7.5), computed in-process in chunks of `--simpol_chunk`
