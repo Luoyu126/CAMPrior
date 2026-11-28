@@ -5,6 +5,8 @@
 1. Weighted pi1 for the backward network's starts and the independent cache: sb_coupling.label_log_weights equals
    the weighting of precompute_logg.py, and DIFUSCO.reverse_starts / imf_cache.py independent draw the labels with
    these weights (chi-square). Negative control: the uniform draw is rejected against the weighted target.
+2. IPF initial cache (imf_cache.py ipf): y ~ pi1, z = y through the reference to the noise end, i.e. every bit kept with
+   probability (1 + a_T) / 2, a_T = tanh(omega / 2); omega = 0 gives z independent of y.
 """
 import os
 import subprocess
@@ -100,6 +102,27 @@ def test_imf_cache_independent_weighted():
         assert chisq_p(c, sb.label_log_weights(S, 0.5).exp().numpy()) > 1e-3
         assert abs(Z.float().mean().item() - 0.5) < 0.01          # z ~ Bernoulli(0.5), independent of y
         assert abs(((Z == Y).float().mean().item()) - 0.5) < 0.01
+
+
+def test_imf_cache_ipf():
+    sets = toy_sets(2)
+    ls = os.path.join(SCRATCH, 'ls_ipf.pt')
+    torch.save({'sets': sets}, ls)
+    for omega in (0.35, 1.0, 0.0):
+        fwd, bwd = os.path.join(SCRATCH, 'fi.pt'), os.path.join(SCRATCH, 'bi.pt')
+        subprocess.run([sys.executable, os.path.join(CAM_ROOT, 'scripts/sb/imf_cache.py'), 'ipf', '--omega', str(omega),
+                        '--label_set', ls, '--J', '20000', '--temp', '1', '--out_fwd', fwd, '--out_bwd', bwd],
+                       check=True, stdout=subprocess.DEVNULL)
+        F, B = torch.load(fwd, weights_only=False), torch.load(bwd, weights_only=False)
+        a_T = np.tanh(omega / 2)
+        assert abs(F['meta']['a_T'] - a_T) < 1e-5, (F['meta']['a_T'], a_T)
+        for gi, S in enumerate(sets):
+            Z, Y = F['starts'][gi], F['labels'][gi]
+            assert torch.equal(B['starts'][gi], Y) and torch.equal(B['labels'][gi], Z)
+            c = np.bincount(row_index(S, Y).numpy(), minlength=S.shape[0])
+            assert chisq_p(c, sb.label_log_weights(S, 1.0).exp().numpy()) > 1e-3
+            keep = (Z == Y).double().mean().item()
+            assert abs(keep - (1 + a_T) / 2) < 0.005, (omega, keep, (1 + a_T) / 2)
 
 
 tests = [(n, f) for n, f in list(globals().items()) if n.startswith('test_') and callable(f)]

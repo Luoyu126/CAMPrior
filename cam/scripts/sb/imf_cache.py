@@ -5,6 +5,10 @@ Backward network (--sb_reverse): start = y, label = z.
 
   independent  z ~ Bernoulli(0.5)^n, y ~ pi1 from the label set (uniform, or --temp T: pi1 ∝ exp(|s| / T); iteration 0
                of the IMF): writes both caches.
+  ipf          the reference process's own end pair (DSBM-IPF initialisation, Shi et al. 2023 Prop. 10; route 1',
+               docs/20261128/plan_route1prime.md §2.4): y ~ pi1 (--temp as above), z = y with every bit flipped with
+               probability (1 - a_T) / 2, a_T the noise-end signal of the SB schedule for --omega (num_tp 50 cosine):
+               writes both caches.
   from_trace   a pair trace (solvers/difusco.py CAM_SB_PAIR_TRACE on the training graphs, CAM_SB_TRACE_NOSHARE=1):
                --direction fwd: trace of the forward network (start z ~ pi0, final = decoded solution y) -> cache
                for the BACKWARD network (true z); --direction bwd: trace of the backward network (start = label y ~
@@ -14,6 +18,7 @@ closed-form SB coupling's expected cost E_{pi*} d(z, y) on the same graphs (Mont
 plan.md 1D criterion 2.
 
   python scripts/sb/imf_cache.py independent --label_set LS --J 16 --out_fwd F.pt --out_bwd B.pt [--logg G.pt]
+  python scripts/sb/imf_cache.py ipf --omega 0.35 --label_set LS --J 16 --out_fwd F.pt --out_bwd B.pt [--temp T]
   python scripts/sb/imf_cache.py from_trace --trace T.jsonl --direction fwd|bwd --out F.pt [--label_set LS --logg G.pt]
 """
 import argparse
@@ -27,6 +32,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 from utils import sb_coupling as sb                              # noqa: E402
+from utils.diffusion_schedulers import CategoricalDiffusion      # noqa: E402
 
 TRAIN = '/usr1/shengyuf/MIS/RB_small_train'
 
@@ -66,7 +72,7 @@ def save(path, starts, labels, meta):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('mode', choices=['independent', 'from_trace'])
+    ap.add_argument('mode', choices=['independent', 'ipf', 'from_trace'])
     ap.add_argument('--label_set', default='/usr0/home/shengyuf/yunyi/data/rb_small_kamis_multi/matched_kamis_loaderorder.pt')
     ap.add_argument('--J', type=int, default=16)
     ap.add_argument('--seed', type=int, default=0)
@@ -78,9 +84,25 @@ def main():
     ap.add_argument('--logg', default=None)
     ap.add_argument('--mc', type=int, default=4096)
     ap.add_argument('--temp', default=None, help='pi1 ∝ exp(|s| / T); default uniform')
+    ap.add_argument('--omega', type=float, default=None, help='ipf: cost strength of the reference')
+    ap.add_argument('--num_tp', type=int, default=50)
     args = ap.parse_args()
     meta = vars(args).copy()
-    if args.mode == 'independent':
+    if args.mode == 'ipf':
+        sets = torch.load(args.label_set, weights_only=False)['sets']
+        a_T = sb.schedule_for_omega(CategoricalDiffusion(T=args.num_tp, schedule='cosine').Q_bar, args.omega)[-1].item()
+        meta['a_T'] = a_T
+        g = torch.Generator().manual_seed(args.seed)
+        temp = sb.parse_temp(args.temp)
+        Z, Y = [], []
+        for S in sets:
+            p = sb.label_log_weights(S, temp).exp()
+            y = S[torch.multinomial(p, args.J, replacement=True, generator=g)].to(torch.uint8)
+            flip = (torch.rand(y.shape, generator=g, dtype=torch.float64) < (1 - a_T) / 2).to(torch.uint8)
+            Y.append(y); Z.append(y ^ flip)
+        cost = save(args.out_fwd, Z, Y, dict(meta, network='forward'))
+        save(args.out_bwd, Y, Z, dict(meta, network='backward'))
+    elif args.mode == 'independent':
         sets = torch.load(args.label_set, weights_only=False)['sets']
         g = torch.Generator().manual_seed(args.seed)
         Z, Y = [], []
