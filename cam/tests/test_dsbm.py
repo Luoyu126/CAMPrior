@@ -11,6 +11,13 @@
    pi_B give in_labels 1, d_near 0 and tv_near at the i.i.d. floor; a collapsed sampler is far above it; uniform
    independent starts give the Bernoulli statistics and ber_gap at its floor, a copy of y gives agree 1. Node order:
    the KaMIS labels of real training graphs have no conflicting edge under graph_edges.
+4. Iteration driver (scripts/sb/dsbm_loop.py): the stopping rule (at least min_iters; 3 changes within 0.03 for the
+   validation statistic and 1 % for both cache costs; max_iters; target), the validation statistic read from a
+   training log (mean of the last 10 epochs), and the cache cost.
+5. MCMC end distributions (scripts/sb/mcmc_labels.py): without the radius constraint the chain's long-run
+   frequencies match pi_B(s) ∝ exp(|s| / T) over all independent sets of a small graph (exact enumeration, TV);
+   with a small radius every sample is an independent set within the radius of a KaMIS solution. Negative
+   control: the frequencies are far from the uniform law over independent sets.
 """
 import os
 import subprocess
@@ -186,6 +193,74 @@ def test_graph_edges_node_order():
         assert (S[:, e0] * S[:, e1]).sum() == 0, f'graph {i}: a KaMIS label has a conflicting edge'
         Z = (np.random.default_rng(i).random(S.shape) < 0.5).astype(np.int8)   # a random state does conflict
         assert (Z[:, e0] * Z[:, e1]).sum() > 0
+
+
+def test_stop_rule_and_logs():
+    sys.path.insert(0, os.path.join(CAM_ROOT, 'scripts', 'sb'))
+    import dsbm_loop as dl
+    flat = [20.0] * 12
+    cost = [100.0] * 12
+    # never before min_iters, even if flat
+    assert not dl.stop_rule(flat, cost, cost, 8, 10, 30)[0]
+    assert dl.stop_rule(flat, cost, cost, 9, 10, 30)[0]
+    # a 0.04 move inside the last 3 changes blocks; outside them it does not
+    v = [20.0] * 12; v[8] = 20.04
+    assert not dl.stop_rule(v, cost, cost, 9, 10, 30)[0]
+    v = [20.0] * 12; v[5] = 20.04
+    assert dl.stop_rule(v, cost, cost, 9, 10, 30)[0]
+    # cost moving 2 % blocks (either cache); None costs (frozen mode) are ignored
+    c = list(cost); c[9] = 102.0
+    assert not dl.stop_rule(flat, cost, c, 9, 10, 30)[0]
+    assert dl.stop_rule(flat, [None] * 12, [None] * 12, 9, 10, 30)[0]
+    # drifting validation keeps going until max_iters
+    drift = [20 + 0.05 * j for j in range(30)]
+    assert not dl.stop_rule(drift, cost * 3, cost * 3, 20, 10, 30)[0]
+    assert dl.stop_rule(drift, cost * 3, cost * 3, 29, 10, 30)[0]
+    # target overrides everything
+    assert not dl.stop_rule(flat, cost, cost, 9, 10, 30, target=12)[0]
+    assert dl.stop_rule(drift, cost * 3, cost * 3, 11, 10, 30, target=12)[0]
+    # validation statistic from a training log
+    log = os.path.join(SCRATCH, 'train.log')
+    with open(log, 'w') as f:
+        for e in range(15):
+            f.write(f'Epoch: {e} train/loss: 0.1\n  1%| progress\n')
+            f.write(f'Epoch: {e} eval/object: {-(20 + 0.01 * e):.6f} eval/time: 0.7 eval/mis_size: {20 + 0.01 * e}\n')
+    m, n = dl.val_stat(log)
+    assert n == 15 and abs(m - (20 + 0.01 * np.mean(range(5, 15)))) < 1e-9
+    # cache cost
+    path = os.path.join(SCRATCH, 'cache.pt')
+    torch.save({'starts': [torch.zeros(4, 10, dtype=torch.uint8)], 'labels': [torch.ones(4, 10, dtype=torch.uint8)]}, path)
+    assert dl.cache_cost(path) == 10.0
+
+
+def test_mcmc_labels():
+    sys.path.insert(0, os.path.join(CAM_ROOT, 'scripts', 'sb'))
+    import itertools
+    import mcmc_labels as mc
+    rng = np.random.default_rng(0)
+    n = 8
+    edges = [(a, b) for a in range(n) for b in range(a + 1, n) if rng.random() < 0.35]
+    adj = [[] for _ in range(n)]
+    for a, b in edges:
+        adj[a].append(b); adj[b].append(a)
+    states = [np.array(x, dtype=np.int8) for x in itertools.product((0, 1), repeat=n)
+              if all(not (x[a] and x[b]) for a, b in edges)]
+    sizes = np.array([x.sum() for x in states])
+    big = states[int(np.argmax(sizes))]
+    K = np.stack([big, states[len(states) // 2]])
+    key = {x.tobytes(): j for j, x in enumerate(states)}
+    for T in (1.0, 0.5):
+        S, acc = mc.run_chain(adj, K, K[0], n, T, 2000, 3, 60000, rng)
+        freq = np.bincount([key[x.tobytes()] for x in S], minlength=len(states)) / len(S)
+        exact = np.exp(sizes / T); exact /= exact.sum()
+        tv = 0.5 * np.abs(freq - exact).sum()
+        assert tv < 0.03, (T, tv, acc)
+        unif = np.full(len(states), 1 / len(states))
+        assert 0.5 * np.abs(freq - unif).sum() > 0.1
+    S, _ = mc.run_chain(adj, K, K[0], 2, 0.5, 500, 2, 5000, rng)
+    e = np.array(edges).T
+    assert (S[:, e[0]] * S[:, e[1]]).sum() == 0
+    assert ((S[:, None, :] != K[None]).sum(-1).min(1) <= 2).all()
 
 
 tests = [(n, f) for n, f in list(globals().items()) if n.startswith('test_') and callable(f)]

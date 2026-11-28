@@ -377,7 +377,9 @@ shows only the items below).
     (`CAM_SB_STARTS_TEMP`, default uniform as before); `scripts/sb/imf_cache.py independent --temp T`;
     `imf_cache.py ipf --omega w` (DSBM-IPF initial pairs: y ~ pi1, z = y through the reference);
     `scripts/sb/dsbm_metrics.py` (training-dynamics metrics from pair traces: the generator's end distribution
-    against pi_B, the noising network's end statistics against Bernoulli(0.5)^n). Tests: `tests/test_dsbm.py`.
+    against pi_B, the noising network's end statistics against Bernoulli(0.5)^n); `scripts/sb/mcmc_labels.py`
+    (perturbed end distributions: Metropolis samples of pi_B ∝ exp(|s| / T) on independent sets within Hamming
+    radius r of the KaMIS solutions, stored as a label set). Tests: `tests/test_dsbm.py`.
 
 `scripts/config.sh` and the other upstream scripts are unchanged and not used by our runner.
 `CAMPrior` runs through the same runner by appending flags, e.g.
