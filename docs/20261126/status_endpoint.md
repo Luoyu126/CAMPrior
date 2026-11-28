@@ -4,25 +4,20 @@
 
 ## 正在跑的任务
 
-（11-28 01:20 UTC 更新。11-26 20:45 会话容器被终止，下面 8 个训练同时中断；11-28 01:17 从各自最后一个 epoch 的检查点续跑
-（`launch.sh` 的 `RESUME`，队列 `runs/experiments/20261126_sb_endpoint/queues/stage_e_resume1.sh`），每个 GPU 一个，训练结束后
-`eval_run.sh` 自动在锚点上评测。续跑日志 `train_resume<epoch>.log`；`*_fail1.log` 是第一次续跑失败的记录（保存目录已有检查点，被拒绝覆盖），无训练。）
+无。（11-28 用户要求停掉全部实验：最近跑的方向与想法不太一致，待重新讨论。）
 
-| 任务 | 续跑起点 epoch | GPU | 预计训练结束（UTC，11-28） |
-|---|---|---|---|
-| k128diffuco 均匀 SB 种子 1（§4 的确认） | 89 | 0 | 约 04:30 |
-| k128diffuco 均匀 对照 种子 1 | 90 | 1 | 约 04:30 |
-| k128diffuco T = 1 SB 种子 1 | 212 | 2 | 约 03:20 |
-| k128diffuco T = 1 对照 种子 1 | 216 | 3 | 约 03:20 |
-| E9 plateau1024 SB | 88 | 4 | 约 05:00 |
-| E9 plateau1024 对照 | 114 | 5 | 约 04:30 |
-| E8 k128diffucoopt SB | 314 | 6 | 约 02:20 |
-| E8 k128diffucoopt 对照 | 358 | 7 | 约 01:50 |
+下面 8 个训练在 11-28 停止，均未跑完、未评测；检查点都保留（`runs/experiments/20261126_sb_endpoint/`），之后可用 `launch.sh` 的 `RESUME` 接着跑：
 
-续跑与一次跑完的差别：学习率调度接着走（已核对：如 epoch 90 时 lr 1.76e-4），AdamW 的动量从零开始；best.pt 只在超过中断前的
-最好验证值时才替换（`--best_eval_init`，新加；之前 `SLSolver` 不支持 `--start_epoch`，也一并补上）。各跑第一个续跑 epoch 都低于原最好值，best.pt 未动。
-
-运行目录：`runs/experiments/20261126_sb_endpoint/`。
+| 任务 | 停在 epoch（共 400） |
+|---|---|
+| k128diffuco 均匀 SB 种子 1（§4 的确认） | 115 |
+| k128diffuco 均匀 对照 种子 1 | 116 |
+| k128diffuco T = 1 SB 种子 1 | 239 |
+| k128diffuco T = 1 对照 种子 1 | 242 |
+| E9 plateau1024 SB | 113 |
+| E9 plateau1024 对照 | 139 |
+| E8 k128diffucoopt SB | 340 |
+| E8 k128diffucoopt 对照 | 384 |
 
 ## 执行记录
 
@@ -43,3 +38,4 @@
   - 按 §4 用第二个种子确认：k128diffuco 均匀 SB 与对照种子 1（GPU 6、7）。plateau1024 的 SB 改到 GPU 5（GPU 2 上的对照每图约 880 个标签，很慢：1.3 小时 27 epoch）。
 - 11-26 20:45：会话容器被终止，8 个训练（上表）同时中断，日志在 epoch 中间截断，无报错。11-28 01:17 续跑（见上）。
   `eval_run.sh` 改为只在 `epoch_0399.pt` 存在时评测（第一次续跑失败时，链上的评测曾在半成品 best.pt 上启动，已在写出任何结果前终止）。
+- 11-28 01:17 续跑上表 8 个训练（`queues/stage_e_resume1.sh`，每 GPU 一个）；约 20 分钟后按用户要求全部停止，评测链一并停止，没有写出任何评测结果。
